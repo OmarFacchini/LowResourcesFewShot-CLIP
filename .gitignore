@@ -1,0 +1,7 @@
+LITE-benchmark/
+__pycache__/
+*.txt
+LITE-benchmark/*.png
+LITE-benchmark/*.jpg
+*.csv
+*.json
