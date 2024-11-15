@@ -10,6 +10,7 @@ from .oxford_flowers import OxfordFlowers
 from .stanford_cars import StanfordCars
 from .imagenet import ImageNet
 from .circuits import Circuits
+from .historic_maps import HistoricMaps
 
 
 dataset_list = {
@@ -24,8 +25,8 @@ dataset_list = {
                 "oxford_flowers": OxfordFlowers,
                 "stanford_cars": StanfordCars,
                 "imagenet": ImageNet,
-                "circuit": Circuits,
-                #"historic_map": historicMap,
+                "circuits": Circuits,
+                "historic_maps": HistoricMaps,
                 }
 
 

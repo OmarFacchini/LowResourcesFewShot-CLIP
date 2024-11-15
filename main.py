@@ -32,7 +32,7 @@ def main():
     else:
         val_loader = build_data_loader(data_source=dataset.val, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8)
         test_loader = build_data_loader(data_source=dataset.test, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8)
-        
+
     train_loader = None
     if not args.eval_only:
         train_tranform = transforms.Compose([

@@ -73,16 +73,19 @@ class Datum:
         classname (str): class name.
     """
 
-    def __init__(self, impath='', label=0, domain=-1, classname=''):
+    def __init__(self, impath='', todaypath='', label=0, domain=-1, classname='', task_type='classification'):
         assert isinstance(impath, str)
-        assert isinstance(label, int)
+        assert isinstance(todaypath, str)
         assert isinstance(domain, int)
         assert isinstance(classname, str)
+        assert isinstance(label, int)
 
         self._impath = impath
+        self._todaypath = todaypath
         self._label = label
         self._domain = domain
         self._classname = classname
+        self._task_type = task_type
 
     @property
     def impath(self):
@@ -99,6 +102,14 @@ class Datum:
     @property
     def classname(self):
         return self._classname
+    
+    @property
+    def todaypath(self):
+        return self._todaypath
+    
+    @property
+    def task_type(self):
+        return self._task_type
 
 
 class DatasetBase:
