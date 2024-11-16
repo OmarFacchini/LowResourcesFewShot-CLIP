@@ -58,8 +58,10 @@ def convert_csv_to_json_historic_maps(dataset_dir, output_json):
 
     print(f"Data has been converted and saved to {output_json}")
 
-# Usage
-dataset_dir = 'LITE-benchmark\historic-maps'  # Replace with the directory containing train.csv, val.csv, and test.csv
-output_json = os.path.join(dataset_dir, 'split_config.json')
-#convert_csv_to_json_circuit(dataset_dir, output_json)
-convert_csv_to_json_historic_maps(dataset_dir, output_json)
+
+if __name__ == "__main__":
+    # Usage
+    dataset_dir = 'LITE-benchmark\historic-maps'  # Replace with the directory containing train.csv, val.csv, and test.csv
+    output_json = os.path.join(dataset_dir, 'split_config.json')
+    #convert_csv_to_json_circuit(dataset_dir, output_json)
+    convert_csv_to_json_historic_maps(dataset_dir, output_json)
