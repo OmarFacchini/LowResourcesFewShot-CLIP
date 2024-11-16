@@ -1,10 +1,10 @@
 import torch
 import torch.nn.functional as F
 
-from utils import *
+from ..utils import *
 
-from loralib.utils import mark_only_lora_as_trainable, apply_lora, get_lora_parameters, lora_state_dict, save_lora, load_lora
-from loralib import layers as lora_layers
+from .loralib.utils import mark_only_lora_as_trainable, apply_lora, get_lora_parameters, lora_state_dict, save_lora, load_lora
+from .loralib import layers as lora_layers
 
 def evaluate_lora(args, clip_model, loader, dataset):
     clip_model.eval()

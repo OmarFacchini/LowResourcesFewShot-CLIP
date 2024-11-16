@@ -1,11 +1,15 @@
+# General modules
+import argparse  
+import random
+import numpy as np
 import torch
 import torchvision.transforms as transforms
-import clip
+# Local modules
 from datasets import build_dataset
 from datasets.utils import build_data_loader
-
-from utils import *
-from lora import run_lora
+import modules.clip as clip
+from modules.lora.lora import run_lora
+from modules.utils import *
 
 def set_random_seed(seed):
     random.seed(seed)
