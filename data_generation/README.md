@@ -21,8 +21,7 @@ start a new environment from scratch
 ```
 wget --content-disposition "https://huggingface.co/CompVis/stable-diffusion-v-1-1/resolve/main/sd-v1-1.ckpt"  
 ```
-5. Adjust absolute paths at the top of "img2img_circuit.py" with your current setup
-
+5. [**Adjust absolute paths**](https://github.com/OmarFacchini/LoRa-challengingDatasets/blob/fd4c41b7647d9d14f9a3284d6cfb993b58315cce/data_generation/img2img_circuit.py#L3#L9) at the top of "img2img_circuit.py" with your current setup
 
 
 ## Generate samples
