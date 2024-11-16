@@ -32,7 +32,7 @@ def evaluate_lora(args, clip_model, loader, dataset):
     return acc
 
 
-def run_lora(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader):
+def run_lora(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader,):
     
     VALIDATION = False
     
