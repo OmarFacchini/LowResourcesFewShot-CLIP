@@ -65,7 +65,6 @@ class MetaAdapter(nn.Module):
         return attn
 
 
-# adapted one
 def run_meta_adapter(cfg, cache_keys, test_features, test_labels, clip_weights, clip_model,
                      train_loader_image):
 
@@ -137,80 +136,6 @@ def run_meta_adapter(cfg, cache_keys, test_features, test_labels, clip_weights, 
             torch.save(key, cfg['cache_dir'] + "/keys" + str(cfg['shots']) + "shots.pt")
 
     print("**** Meta-Adapter's best accuracy: {:.2f}. ****".format(best_acc))
-
-
-# original one 
-# def run_meta_adapter(cfg, cache_keys, test_features, test_labels, clip_weights, clip_model,
-#                      train_loader_image):
-
-#     # Zero-shot CLIP
-#     clip_logits = 100. * test_features @ clip_weights
-#     acc = cls_acc(clip_logits, test_labels)
-#     print("**** Zero-shot CLIP's test accuracy on novel classes: {:.2f}. ****".format(acc))
-
-#     adapter = MetaAdapter(dim=cache_keys.shape[0]).to(clip_model.dtype).cuda()
-
-#     optimizer = torch.optim.AdamW(adapter.parameters(), lr=cfg['lr'], eps=1e-4)
-#     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, cfg['train_epoch'] * len(train_loader_image))
-
-#     best_acc, best_epoch = 0.0, 0
-
-#     query = clip_weights.T
-#     key = cache_keys.T.reshape(query.shape[0], -1, query.shape[1])
-
-#     for train_idx in range(cfg['train_epoch']):
-#         # Train
-#         adapter.train()
-#         correct_samples, all_samples = 0, 0
-#         loss_list = []
-#         print('Train Epoch: {:} / {:}'.format(train_idx, cfg['train_epoch']))
-
-#         for i, (images, target) in enumerate(tqdm(train_loader_image)):
-#             images, target = images.cuda(), target.cuda()
-#             with torch.no_grad():
-#                 image_features = clip_model.encode_image(images)
-#                 image_features /= image_features.norm(dim=-1, keepdim=True)
-
-#             weights = adapter(query, key, key)
-#             tip_logits = 100. * image_features @ weights.T
-
-#             loss = F.cross_entropy(tip_logits, target)
-
-#             acc = cls_acc(tip_logits, target)
-#             correct_samples += acc / 100 * len(tip_logits)
-#             all_samples += len(tip_logits)
-#             loss_list.append(loss.item())
-
-#             optimizer.zero_grad()
-#             loss.backward()
-#             optimizer.step()
-#             scheduler.step()
-
-#             # update cache_keys
-#             with torch.no_grad():
-#                 for tar, feat in zip(target, image_features):
-#                     key[tar] = torch.cat([feat[None, :], key[tar][:key.shape[1] - 1]], dim=0)
-
-#         current_lr = scheduler.get_last_lr()[0]
-#         print('LR: {:.6f}, Acc: {:.4f} ({:}/{:}), Loss: {:.4f}'.format(current_lr, correct_samples / all_samples,
-#                                                                        correct_samples, all_samples,
-#                                                                        sum(loss_list) / len(loss_list)))
-
-#         # Eval
-#         adapter.eval()
-
-#         query_test = clip_weights.T
-#         key_test = cache_keys.T.reshape(query_test.shape[0], -1, query_test.shape[1])
-#         weights = adapter(query_test, key_test, key_test)
-#         tip_logits = 100. * test_features @ weights.T
-#         acc = cls_acc(tip_logits, test_labels)
-
-#         if acc > best_acc:
-#             best_acc = acc
-#             torch.save(adapter.state_dict(), cfg['cache_dir'] + "/best_meta_" + str(cfg['shots']) + "shots.pt")
-#             torch.save(key, cfg['cache_dir'] + "/keys" + str(cfg['shots']) + "shots.pt")
-
-#     print("**** Meta-Adapter's best accuracy: {:.2f}. ****".format(best_acc))
 
 
 # def main():
