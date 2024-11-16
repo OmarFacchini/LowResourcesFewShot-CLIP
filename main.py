@@ -8,7 +8,7 @@ import torchvision.transforms as transforms
 from datasets import build_dataset
 from datasets.utils import build_data_loader
 import modules.clip as clip
-from modules.lora.lora import run_lora
+from modules.runner import run_edited_model
 from modules.utils import *
 
 def set_random_seed(seed):
@@ -61,7 +61,7 @@ def main():
 
     # Prepare dataset
     print("Preparing dataset.")
-        
+    
     dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
     
     if args.dataset == 'imagenet':
@@ -85,7 +85,7 @@ def main():
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
 
-    run_lora(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader)
+    run_edited_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader)
 
 if __name__ == '__main__':
     main()
