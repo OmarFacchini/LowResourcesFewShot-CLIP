@@ -14,7 +14,7 @@ from .meta_adapter import *
 from .clip import *
 
 
-def run_edited_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader,):
+def run_edited_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader, task_type):
     """
     Run CLIP with chosen modules (LoRA, Meta-Adapter, etc.)
     (currently is a Copy from run_lora from LoRa-challengingDatasets/modules/lora/lora.py)
@@ -23,11 +23,16 @@ def run_edited_model(args, clip_model, logit_scale, dataset, train_loader, val_l
     
     # Textual features
     print("\nGetting textual features as CLIP's classifier.")
-    textual_features = clip_classifier(dataset.classnames, dataset.template, clip_model)
+    #currently not sure if it works properly with retrieval classes due to missing cuda, hence the empty else
+    if task_type == 'classification':
+        textual_features = clip_classifier(dataset.classnames, dataset.template, clip_model)
+    else: #task_type == 'retrieval'
+        pass
+        #textual_features, labels = pre_load_features(clip_model, test_loader) 
 
     # Pre-load val features
     print("\nLoading visual features and labels from val set.")
-    val_features, val_labels = pre_load_features(clip_model, val_loader)
+    #val_features, val_labels = pre_load_features(clip_model, val_loader)
 
     # Pre-load test features
     print("\nLoading visual features and labels from test set.")

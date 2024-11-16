@@ -110,6 +110,10 @@ class Datum:
     @property
     def task_type(self):
         return self._task_type
+    
+    def __repr__(self):
+        return (f"Datum(impath={self.impath}, todaypath={self.todaypath}, "
+                f"label={self.label}, classname={self.classname}, task_type={self.task_type})")
 
 
 class DatasetBase:

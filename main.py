@@ -85,7 +85,11 @@ def main():
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
 
-    run_edited_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader)
+    task_type = 'classification'
+    if args.dataset == 'historic_maps':
+        task_type = 'retrieval'
+
+    run_edited_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader, task_type)
 
 if __name__ == '__main__':
     main()
