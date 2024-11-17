@@ -8,7 +8,7 @@ import torchvision.transforms as transforms
 from datasets import build_dataset
 from datasets.utils import build_data_loader
 import modules.clip as clip
-from modules.runner import run_edited_model
+from modules.runner import train_model
 from modules.utils import *
 
 def set_random_seed(seed):
@@ -43,6 +43,12 @@ def get_arguments():
     parser.add_argument('--filename', default='lora_weights', help='file name to save the lora weights (.pt extension will be added)')
     
     parser.add_argument('--eval_only', default=False, action='store_true', help='only evaluate the LoRA modules (save_path should not be None)')
+    
+    # flags to add modules to CLIP
+    parser.add_argument('--enable_MetaAdapter', default=False, action='store_true', help='add Meta-Adapter to CLIP model')
+    parser.add_argument('--enable_lora', default=False, action='store_true', help='add LoRA adapter to CLIP model')
+    parser.add_argument('--enable_BitFit', default=False, action='store_true', help='add BitFit adapter to CLIP model')
+    
     args = parser.parse_args()
 
     return args
@@ -89,7 +95,7 @@ def main():
     if args.dataset == 'historic_maps':
         task_type = 'retrieval'
 
-    run_edited_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader, task_type)
+    train_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader, task_type)
 
 if __name__ == '__main__':
     main()

@@ -6,6 +6,7 @@ from ..utils import *
 from .loralib.utils import mark_only_lora_as_trainable, apply_lora, get_lora_parameters, lora_state_dict, save_lora, load_lora
 from .loralib import layers as lora_layers
 
+
 def evaluate_lora(args, clip_model, loader, dataset):
     clip_model.eval()
     with torch.no_grad():
@@ -58,7 +59,6 @@ def run_lora(args, clip_model, logit_scale, dataset, train_loader, val_loader, t
     
     test_features = test_features.cpu()
     test_labels = test_labels.cpu()
-    
     
     list_lora_layers = apply_lora(args, clip_model)
     clip_model = clip_model.cuda() 
