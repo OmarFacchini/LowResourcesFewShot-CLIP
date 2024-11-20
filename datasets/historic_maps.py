@@ -1,5 +1,6 @@
 import os
 import re
+import json
 
 from .utils import Datum, DatasetBase, read_json, write_json, build_data_loader
 from .oxford_pets import OxfordPets
@@ -49,24 +50,33 @@ city_dict = {'Amsterdam': 0, 'Utrecht': 1, 'Middelburg': 2, 'Breda': 3, 'Arnhem'
              'Liege': 303, 'Brugge': 304, 'Tournai-1': 305, 'Mons-1': 306, 'Oostende': 307, 'Tournai-2': 308, 'Mons-2': 309, 'Gent-1': 310, 'Kortrijk': 311, 
              'Leuven': 312, 'Gent-2': 313, 'Antwerpen': 314, 'Brussel': 315, 'Tokyo': 316, 'Jersey': 317}
 
+# city_dict = json.load('LITE-benchmark\historic-maps\city2id_label_map.json') is the equivalent
+
 class HistoricMaps(DatasetBase):
 
     dataset_dir = 'historic-maps'
 
-    def __init__(self, root, num_shots):
+    def __init__(self, root, num_shots, to_embed=False):
 
         self.dataset_dir = os.path.join(root, self.dataset_dir)
         self.image_dir = os.path.join(self.dataset_dir, 'Satellite')
-        self.split_path = os.path.join(self.dataset_dir, 'split_config.json')
 
-        #train, val, test = OxfordPets.read_split(self.split_path, self.image_dir)
-        train, val, test = self.read_split(self.split_path, self.image_dir)
+        if not to_embed:
+            self.split_path = os.path.join(self.dataset_dir, 'split_config.json')
+
+            #train, val, test = OxfordPets.read_split(self.split_path, self.image_dir)
+            train, val, test = self.read_split(self.split_path, self.image_dir)
+            super().__init__(train_x=train, val=val, test=test)
+        else:
+            self.split_path = os.path.join(self.dataset_dir, 'single_img_per_class.json')
+            train = self.read_single_img_per_class(self.split_path, self.image_dir)
+            super().__init__(train_x=train)
 
         #n_shots_val = min(num_shots, 4)
         #val = self.generate_fewshot_dataset(val, num_shots=n_shots_val)
         #train = self.generate_fewshot_dataset(train, num_shots=num_shots)
 
-        super().__init__(train_x=train, val=val, test=test)
+        #super().__init__(train_x=train, val=val, test=test)
 
     @staticmethod
     def read_split(filepath, path_prefix):
@@ -95,3 +105,20 @@ class HistoricMaps(DatasetBase):
         test = _convert(split['test'])
 
         return train, val, test
+    
+    @staticmethod
+    def read_single_img_per_class(filepath, path_prefix):
+        out = []
+        with open(filepath, 'r') as json_file:
+            data = json.load(json_file)
+        for key, value in data.items():
+            item = Datum(
+                impath=value[2], #historic path
+                todaypath=value[1], #today path
+                label=int(value[0]), #or label=city_dict[key]
+                classname=key,
+                task_type='retrieval'
+            )
+            out.append(item)
+        return out
+            

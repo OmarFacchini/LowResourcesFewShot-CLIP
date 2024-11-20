@@ -30,8 +30,10 @@ dataset_list = {
                 }
 
 
-def build_dataset(dataset, root_path, shots, preprocess):
+def build_dataset(dataset, root_path, shots, preprocess, to_embed=False):
     if dataset == 'imagenet':
         return dataset_list[dataset](root_path, shots, preprocess)
+    elif dataset == 'historic_maps' or dataset == 'mechanical_drawings': # only for the retrieval datasets we need the embed parameter
+        return dataset_list[dataset](root_path, shots, to_embed)
     else:
         return dataset_list[dataset](root_path, shots)
