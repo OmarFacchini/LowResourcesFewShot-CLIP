@@ -33,7 +33,7 @@ def get_arguments():
     parser.add_argument('--batch_size', default=32, type=int)
     # LoRA arguments
     parser.add_argument('--position', type=str, default='all', choices=['bottom', 'mid', 'up', 'half-up', 'half-bottom', 'all', 'top3'], help='where to put the LoRA modules')
-    parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='both')
+    parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='vision')
     parser.add_argument('--params', metavar='N', type=str, nargs='+', default=['q', 'k', 'v'], help='list of attention matrices where putting a LoRA') 
     parser.add_argument('--r', default=2, type=int, help='the rank of the low-rank matrices')
     parser.add_argument('--alpha', default=1, type=int, help='scaling (see LoRA paper)')
@@ -91,9 +91,9 @@ def main():
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
 
-    task_type = 'classification'
+    task_type = 'image2text'
     if args.dataset == 'historic_maps':
-        task_type = 'retrieval'
+        task_type = 'image2image'
 
     train_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader, task_type)
 

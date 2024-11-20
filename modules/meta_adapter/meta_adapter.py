@@ -9,11 +9,9 @@ import torch.nn as nn
 from datasets import build_dataset
 from datasets.utils import build_data_loader
 import torchvision.transforms as transforms
-import clip
-from clip.utils import (cls_acc,
-                        clip_classifier,
-                        build_cache_model,
-                        pre_load_features)
+
+from ..clip import clip
+from ..utils import cls_acc#, clip_classifier, build_cache_model, pre_load_features
 
 
 def get_arguments():
@@ -138,60 +136,50 @@ def run_meta_adapter(cfg, cache_keys, test_features, test_labels, clip_weights, 
     print("**** Meta-Adapter's best accuracy: {:.2f}. ****".format(best_acc))
 
 
-# def main():
-#     # Load config file
-#     args = get_arguments()
-#     assert (os.path.exists(args.config))
-
-#     cfg = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
-
-#     cache_dir = os.path.join('./caches', cfg['dataset'])
-#     os.makedirs(cache_dir, exist_ok=True)
-#     cfg['cache_dir'] = cache_dir
-
-#     # CLIP
-#     clip_model, preprocess = clip.load(cfg['backbone'])
-#     clip_model.eval()
-
-#     # ImageNet dataset
-#     random.seed(1)
-#     torch.manual_seed(1)
-
-#     print("Preparing dataset.")
-#     dataset = build_dataset(cfg['dataset'], cfg['root_path'], cfg['shots'])
-
-#     if cfg['dataset'] == 'imagenet':
-#         test_loader = torch.utils.data.DataLoader(dataset.val, batch_size=64, num_workers=8, shuffle=False)
-#         train_loader_cache = torch.utils.data.DataLoader(dataset.full, batch_size=64, num_workers=8, shuffle=False)
-#         train_loader_F = torch.utils.data.DataLoader(dataset.train, batch_size=64, num_workers=8, shuffle=True)
-#     else:
-#         test_loader = build_data_loader(data_source=dataset.val, batch_size=64, is_train=False, tfm=preprocess,
-#                                         shuffle=False)
-#         train_tranform = transforms.Compose([
-#             transforms.RandomResizedCrop(size=224, scale=(0.5, 1), interpolation=transforms.InterpolationMode.BICUBIC),
-#             transforms.RandomHorizontalFlip(p=0.5),
-#             transforms.ToTensor(),
-#             transforms.Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711))
-#         ])
-#         train_loader_cache = build_data_loader(data_source=dataset.full, batch_size=64, tfm=train_tranform,
-#                                                is_train=True, shuffle=False)
-#         train_loader_F = build_data_loader(data_source=dataset.train, batch_size=64, tfm=train_tranform,
-#                                            is_train=True, shuffle=True)
-
-#     # Textual features
-#     print("Getting textual features as CLIP's classifier.")
-#     clip_weights = clip_classifier(dataset.classnames, dataset.template, clip_model)
-
-#     # Construct the cache model by few-shot training set
-#     print("Constructing cache model by few-shot visual features and labels.")
-#     cache_keys = build_cache_model(cfg, clip_model, train_loader_cache)
-
-#     # Pre-load test features
-#     print("Loading visual features and labels from test set.")
-#     test_features, test_labels = pre_load_features(cfg, "test", clip_model, test_loader)
-
-#     run_meta_adapter(cfg, cache_keys, test_features, test_labels, clip_weights, clip_model, train_loader_F)
+def main():
+    # Load config file
+    args = get_arguments()
+    assert (os.path.exists(args.config))
+    cfg = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
+    cache_dir = os.path.join('./caches', cfg['dataset'])
+    os.makedirs(cache_dir, exist_ok=True)
+    cfg['cache_dir'] = cache_dir
+    # CLIP
+    clip_model, preprocess = clip.load(cfg['backbone'])
+    clip_model.eval()
+    # ImageNet dataset
+    random.seed(1)
+    torch.manual_seed(1)
+    print("Preparing dataset.")
+    dataset = build_dataset(cfg['dataset'], cfg['root_path'], cfg['shots'])
+    if cfg['dataset'] == 'imagenet':
+        test_loader = torch.utils.data.DataLoader(dataset.val, batch_size=64, num_workers=8, shuffle=False)
+        train_loader_cache = torch.utils.data.DataLoader(dataset.full, batch_size=64, num_workers=8, shuffle=False)
+        train_loader_F = torch.utils.data.DataLoader(dataset.train, batch_size=64, num_workers=8, shuffle=True)
+    else:
+        test_loader = build_data_loader(data_source=dataset.val, batch_size=64, is_train=False, tfm=preprocess,
+                                        shuffle=False)
+        train_tranform = transforms.Compose([
+            transforms.RandomResizedCrop(size=224, scale=(0.5, 1), interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711))
+        ])
+        train_loader_cache = build_data_loader(data_source=dataset.full, batch_size=64, tfm=train_tranform,
+                                            is_train=True, shuffle=False)
+        train_loader_F = build_data_loader(data_source=dataset.train, batch_size=64, tfm=train_tranform,
+                                        is_train=True, shuffle=True)
+    # Textual features
+    print("Getting textual features as CLIP's classifier.")
+    clip_weights = clip_classifier(dataset.classnames, dataset.template, clip_model)
+    # Construct the cache model by few-shot training set
+    print("Constructing cache model by few-shot visual features and labels.")
+    cache_keys = build_cache_model(cfg, clip_model, train_loader_cache)
+    # Pre-load test features
+    print("Loading visual features and labels from test set.")
+    test_features, test_labels = pre_load_features(cfg, "test", clip_model, test_loader)
+    run_meta_adapter(cfg, cache_keys, test_features, test_labels, clip_weights, clip_model, train_loader_F)
 
 
-# if __name__ == '__main__':
-#     main()
+if __name__ == '__main__':
+    main()
