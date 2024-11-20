@@ -56,27 +56,27 @@ class HistoricMaps(DatasetBase):
 
     dataset_dir = 'historic-maps'
 
-    def __init__(self, root, num_shots, to_embed=False):
+    def __init__(self, root, num_shots,):
 
         self.dataset_dir = os.path.join(root, self.dataset_dir)
         self.image_dir = os.path.join(self.dataset_dir, 'Satellite')
 
-        if not to_embed:
-            self.split_path = os.path.join(self.dataset_dir, 'split_config.json')
+        self.split_path = os.path.join(self.dataset_dir, 'split_config.json')
 
-            #train, val, test = OxfordPets.read_split(self.split_path, self.image_dir)
-            train, val, test = self.read_split(self.split_path, self.image_dir)
-            super().__init__(train_x=train, val=val, test=test)
-        else:
-            self.split_path = os.path.join(self.dataset_dir, 'single_img_per_class.json')
-            train = self.read_single_img_per_class(self.split_path, self.image_dir)
-            super().__init__(train_x=train)
+        #train, val, test = OxfordPets.read_split(self.split_path, self.image_dir)
+        train, val, test = self.read_split(self.split_path, self.image_dir)
+
+        self.split_path = os.path.join(self.dataset_dir, 'single_img_per_class.json')
+        target = self.read_single_img_per_class(self.split_path, self.image_dir)
+
+        #super().__init__(train_x=train, val=val, test=test, target=target)
+
 
         #n_shots_val = min(num_shots, 4)
         #val = self.generate_fewshot_dataset(val, num_shots=n_shots_val)
         #train = self.generate_fewshot_dataset(train, num_shots=num_shots)
 
-        #super().__init__(train_x=train, val=val, test=test)
+        super().__init__(train_x=train, val=val, test=test, target=target)
 
     @staticmethod
     def read_split(filepath, path_prefix):
@@ -90,10 +90,9 @@ class HistoricMaps(DatasetBase):
                 classname = re.split(r'[\\/]', historic_path)[-2]
                 item = Datum(
                     impath=historic_path,
-                    todaypath=today_path,
+                    target_path=today_path,
                     label=city_dict[classname],
                     classname=classname,
-                    task_type='retrieval'
                 )
                 out.append(item)
             return out
@@ -113,11 +112,9 @@ class HistoricMaps(DatasetBase):
             data = json.load(json_file)
         for key, value in data.items():
             item = Datum(
-                impath=value[2], #historic path
-                todaypath=value[1], #today path
+                impath=os.path.join(path_prefix, value[1]), #today path
                 label=int(value[0]), #or label=city_dict[key]
-                classname=key,
-                task_type='retrieval'
+                target_path=os.path.join(path_prefix, value[1])
             )
             out.append(item)
         return out

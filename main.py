@@ -67,8 +67,12 @@ def main():
 
     # Prepare dataset
     print("Preparing dataset.")
+    task_type = 'image2text'
+    if args.dataset == 'historic_maps':
+        task_type = 'image2image'
+
     
-    embed_dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess, to_embed=True)
+    #embed_dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess, to_embed=True)
     
     dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
 
@@ -76,8 +80,25 @@ def main():
         val_loader = torch.utils.data.DataLoader(dataset.val, batch_size=256, num_workers=8, shuffle=False, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(dataset.test, batch_size=256, num_workers=8, shuffle=False, pin_memory=True)
     else:
-        val_loader = build_data_loader(data_source=dataset.val, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8)
-        test_loader = build_data_loader(data_source=dataset.test, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8)
+        val_loader = build_data_loader(data_source=dataset.val, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
+        #test_loader = build_data_loader(data_source=dataset.test, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
+
+        if task_type == 'image2image':
+            target_loader = build_data_loader(data_source=dataset.target, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
+
+    inputs, labels, target_img = next(iter(val_loader))
+    print(f"inputs: {inputs}, labels: {labels} \ntarget_img: {target_img}")
+
+    '''results = []
+    for i, (inputs, labels, target_img) in enumerate(loader):
+        results.append(labels)
+    result = torch.cat(results, dim=0)
+    print(result.shape)
+    '''
+
+    exit()
+
+    
 
     train_loader = None
     if not args.eval_only:
@@ -92,10 +113,6 @@ def main():
             train_loader = torch.utils.data.DataLoader(dataset.train_x, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
-
-    task_type = 'image2text'
-    if args.dataset == 'historic_maps':
-        task_type = 'image2image'
 
     train_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader, task_type)
 

@@ -73,19 +73,17 @@ class Datum:
         classname (str): class name.
     """
 
-    def __init__(self, impath='', todaypath='', label=0, domain=-1, classname='', task_type='classification'):
+    def __init__(self, impath='', target_path='', label=-1, classname=''):
         assert isinstance(impath, str)
-        assert isinstance(todaypath, str)
-        assert isinstance(domain, int)
+        assert isinstance( target_path, str)
         assert isinstance(classname, str)
         assert isinstance(label, int)
 
         self._impath = impath
-        self._todaypath = todaypath
+        self._target_path = target_path
         self._label = label
-        self._domain = domain
         self._classname = classname
-        self._task_type = task_type
+
 
     @property
     def impath(self):
@@ -96,24 +94,17 @@ class Datum:
         return self._label
 
     @property
-    def domain(self):
-        return self._domain
-
-    @property
     def classname(self):
         return self._classname
     
     @property
-    def todaypath(self):
-        return self._todaypath
+    def  target_path(self):
+        return self._target_path
     
-    @property
-    def task_type(self):
-        return self._task_type
     
     def __repr__(self):
-        return (f"Datum(impath={self.impath}, todaypath={self.todaypath}, "
-                f"label={self.label}, classname={self.classname}, task_type={self.task_type})")
+        return (f"Datum(impath={self.impath}, target_path={self.target_path}, "
+                f"label={self.label}, classname={self.classname}")
 
 
 class DatasetBase:
@@ -125,11 +116,12 @@ class DatasetBase:
     dataset_dir = '' # the directory where the dataset is stored
     domains = [] # string names of all domains
 
-    def __init__(self, train_x=None, train_u=None, val=None, test=None):
+    def __init__(self, train_x=None, train_u=None, val=None, test=None, target=[0]):
         self._train_x = train_x # labeled training data
         self._train_u = train_u # unlabeled training data (optional)
         self._val = val # validation data (optional)
         self._test = test # test data
+        self._target = target # target data for img2img
 
         self._num_classes = self.get_num_classes(train_x)
         self._lab2cname, self._classnames = self.get_lab2cname(train_x)
@@ -149,6 +141,10 @@ class DatasetBase:
     @property
     def test(self):
         return self._test
+    
+    @property
+    def target(self):
+        return self._target
 
     @property
     def lab2cname(self):
@@ -161,6 +157,7 @@ class DatasetBase:
     @property
     def num_classes(self):
         return self._num_classes
+    
 
     def get_num_classes(self, data_source):
         """Count number of classes.
@@ -297,13 +294,14 @@ class DatasetBase:
 
 class DatasetWrapper(TorchDataset):
     def __init__(self, data_source, input_size, transform=None, is_train=False,
-                 return_img0=False, k_tfm=1):
+                 return_img0=False, k_tfm=1, task='image2image'):
         self.data_source = data_source
         self.transform = transform # accept list (tuple) as input
         self.is_train = is_train
         # Augmenting an image K>1 times is only allowed during training
         self.k_tfm = k_tfm if is_train else 1
         self.return_img0 = return_img0
+        self.task = task
 
         if self.k_tfm > 1 and transform is None:
             raise ValueError(
@@ -330,9 +328,28 @@ class DatasetWrapper(TorchDataset):
 
         output = {
             'label': item.label,
-            'domain': item.domain,
-            'impath': item.impath
+            'impath': item.impath # historic map
         }
+
+        # if in image2image case, create a target image
+        if self.task == 'image2image':
+            #target_img = read_image(item.todaypath)
+            target_img = read_image(item.target_path)
+
+            if isinstance(self.transform, (list, tuple)):
+                for i, tfm in enumerate(self.transform):
+                    target_img = self._transform_image(tfm, target_img)
+                    keyname = 'target_img'
+                    if (i + 1) > 1:
+                        keyname += str(i + 1)
+                    output[keyname] = target_img
+            else:
+                  target_img = self._transform_image(self.transform, target_img)
+            
+        else: # else we are in image2text and don't need the second image
+            target_img = torch.zeros(1)
+
+        output['target_img'] = target_img
 
         img0 = read_image(item.impath)
 
@@ -351,7 +368,7 @@ class DatasetWrapper(TorchDataset):
         if self.return_img0:
             output['img0'] = self.to_tensor(img0)
 
-        return output['img'], output['label']
+        return output['img'], output['label'], output['target_img']
 
     def _transform_image(self, tfm, img0):
         img_list = []
@@ -374,7 +391,8 @@ def build_data_loader(
     is_train=True,
     shuffle=False,
     dataset_wrapper=None,
-    num_workers=8
+    num_workers=8,
+    task_type='image2text'
 ):
 
     if dataset_wrapper is None:
@@ -383,7 +401,7 @@ def build_data_loader(
     
     # Build data loader
     data_loader = torch.utils.data.DataLoader(
-        dataset_wrapper(data_source, input_size=input_size, transform=tfm, is_train=is_train),
+        dataset_wrapper(data_source, input_size=input_size, transform=tfm, is_train=is_train, task=task_type),
         batch_size=batch_size,
         num_workers=num_workers,
         shuffle=shuffle,
