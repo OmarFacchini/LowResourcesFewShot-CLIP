@@ -68,8 +68,10 @@ def main():
     # Prepare dataset
     print("Preparing dataset.")
     
-    dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
+    embed_dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess, to_embed=True)
     
+    dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
+
     if args.dataset == 'imagenet':
         val_loader = torch.utils.data.DataLoader(dataset.val, batch_size=256, num_workers=8, shuffle=False, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(dataset.test, batch_size=256, num_workers=8, shuffle=False, pin_memory=True)
