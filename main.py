@@ -8,8 +8,11 @@ import torchvision.transforms as transforms
 from datasets import build_dataset
 from datasets.utils import build_data_loader
 import modules.clip as clip
-from modules.runner import train_model
+from modules.runner import train_model, eval_model
 from modules.utils import *
+
+from modules.model import FewShotClip
+
 
 def set_random_seed(seed):
     random.seed(seed)
@@ -29,19 +32,20 @@ def get_arguments():
     parser.add_argument('--backbone', default='ViT-B/16', type=str)
     # Training arguments
     parser.add_argument('--lr', default=2e-4, type=float)
-    parser.add_argument('--n_iters', default=500, type=int)
+    parser.add_argument('--n_iters', default=3, type=int)
     parser.add_argument('--batch_size', default=32, type=int)
     # LoRA arguments
     parser.add_argument('--position', type=str, default='all', choices=['bottom', 'mid', 'up', 'half-up', 'half-bottom', 'all', 'top3'], help='where to put the LoRA modules')
-    parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='vision')
+    parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='both')
     parser.add_argument('--params', metavar='N', type=str, nargs='+', default=['q', 'k', 'v'], help='list of attention matrices where putting a LoRA') 
     parser.add_argument('--r', default=2, type=int, help='the rank of the low-rank matrices')
     parser.add_argument('--alpha', default=1, type=int, help='scaling (see LoRA paper)')
     parser.add_argument('--dropout_rate', default=0.25, type=float, help='dropout rate applied before the LoRA module')
     
     parser.add_argument('--save_path', default=None, help='path to save the lora modules after training, not saved if None')
-    parser.add_argument('--filename', default='lora_weights', help='file name to save the lora weights (.pt extension will be added)')
-    
+    parser.add_argument('--filename', default='few_shot_clip', help='file name to save the lora weights (.pt extension will be added)')
+    parser.add_argument('--load_ckpt', default=None, help='Modle checkpoint to load')
+
     parser.add_argument('--eval_only', default=False, action='store_true', help='only evaluate the LoRA modules (save_path should not be None)')
     
     # flags to add modules to CLIP
@@ -57,7 +61,6 @@ def main():
 
     # Load config file
     args = get_arguments()
-    
     set_random_seed(args.seed)
     
     # CLIP
@@ -71,35 +74,18 @@ def main():
     if args.dataset == 'historic_maps':
         task_type = 'image2image'
 
-    
-    #embed_dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess, to_embed=True)
-    
     dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
+    target_loader = None
 
     if args.dataset == 'imagenet':
         val_loader = torch.utils.data.DataLoader(dataset.val, batch_size=256, num_workers=8, shuffle=False, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(dataset.test, batch_size=256, num_workers=8, shuffle=False, pin_memory=True)
     else:
         val_loader = build_data_loader(data_source=dataset.val, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
-        #test_loader = build_data_loader(data_source=dataset.test, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
-
+        test_loader = build_data_loader(data_source=dataset.test, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
         if task_type == 'image2image':
-            target_loader = build_data_loader(data_source=dataset.target, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
-
-    inputs, labels, target_img = next(iter(val_loader))
-    print(f"inputs: {inputs}, labels: {labels} \ntarget_img: {target_img}")
-
-    '''results = []
-    for i, (inputs, labels, target_img) in enumerate(loader):
-        results.append(labels)
-    result = torch.cat(results, dim=0)
-    print(result.shape)
-    '''
-
-    exit()
-
+            target_loader = build_data_loader(data_source=dataset.target, batch_size=1, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
     
-
     train_loader = None
     if not args.eval_only:
         train_tranform = transforms.Compose([
@@ -114,7 +100,18 @@ def main():
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
 
-    train_model(args, clip_model, logit_scale, dataset, train_loader, val_loader, test_loader, task_type)
+    model = FewShotClip(args, clip_model, dataset, target_loader, val_loader, task_type=task_type).cuda()
+    if args.load_ckpt is not None:
+        checkpoint = torch.load(args.load_ckpt, weights_only=True)
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+    print("MODEL SIZE => ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+    
+    if args.eval_only:
+        acc_test = eval_model(args, model, test_loader, dataset, target_loader, task_type)
+        print("**** Final test accuracy: {:.2f}. ****\n".format(acc_test))
+    else :
+        train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, task_type)
 
 if __name__ == '__main__':
     main()
