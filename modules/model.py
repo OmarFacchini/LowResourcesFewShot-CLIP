@@ -32,12 +32,12 @@ def get_vision_labels_features(model, loader):
         with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
             image_features = model.encode_image(images)
             features_list.append(image_features)
-
+    
     with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
         vision_features = torch.stack(features_list, dim=0).mean(dim=0)    
-        vision_features /= vision_features.norm(dim=-1, keepdim=True)
+        normalized_vision_features = vision_features/vision_features.norm(dim=-1, keepdim=True)
 
-    return vision_features
+    return normalized_vision_features
 
 
 class FewShotClip(nn.Module):
@@ -74,7 +74,7 @@ class FewShotClip(nn.Module):
 
         # Load meta-adapter
         if args.enable_MetaAdapter:
-            self.meta_adapter = MetaAdapter(dim=512).to(self.clip_model.dtype).cuda()
+            self.meta_adapter = MetaAdapter(dim=512).to(self.clip_model.dtype)
             print("Adding Meta-Adapter to CLIP model.")
 
         # Cast all parameters to float

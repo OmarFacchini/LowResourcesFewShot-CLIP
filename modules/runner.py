@@ -55,11 +55,15 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
 
     # Extract Query - Key pairs for Meta-Adapter
     if args.enable_MetaAdapter:
+        model = model.eval()
         support_features = get_vision_labels_features(model, val_loader)
         # Category embeddings
         meta_query = target_features
         # Support embedding
         meta_key = support_features.reshape(meta_query.shape[0], -1, meta_query.shape[1])
+        # Detach tensors from computation graph
+        meta_query = meta_query.detach()
+        meta_key = meta_key.detach()
 
     # Set up optimizer and scheduler
     total_iters = args.n_iters * args.shots
@@ -67,7 +71,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_iters, eta_min=1e-6)
 
     # training model
-    scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.amp.GradScaler()
     count_iters = 0
     finish = False
     
@@ -76,8 +80,11 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
         acc_train = 0
         tot_samples = 0
         loss_epoch = 0.
-
-        for i, (images, target, target_f) in enumerate(tqdm(train_loader)):  
+        
+        train_loader_tqdm = tqdm(train_loader)
+        for i, (images, target, target_f) in enumerate(train_loader_tqdm):
+            train_loader_tqdm.set_description(f'Itr {count_iters}/{total_iters}')
+            
             # Load data on GPU
             images, target = images.cuda(), target.cuda()
             # Load Label features
@@ -88,8 +95,8 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             # Forward the batch
             if args.encoder == 'vision' or args.encoder == 'both':
                 with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
-                    image_features = model.encode_image(images)
-                    image_features = image_features/image_features.norm(dim=-1, keepdim=True)
+                    image_encoding = model.encode_image(images)
+                    image_features = image_encoding/image_encoding.norm(dim=-1, keepdim=True)
 
             if args.enable_MetaAdapter:
                 # Forward through Meta-Adapter
@@ -104,6 +111,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             acc_train += cls_acc(cosine_similarity, target) * target.shape[0]
             loss_epoch += loss.item() * target.shape[0]
             tot_samples += target.shape[0]
+            
             optimizer.zero_grad()
             scaler.scale(loss).backward()
             scaler.step(optimizer)

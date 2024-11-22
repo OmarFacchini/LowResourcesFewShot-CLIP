@@ -12,7 +12,7 @@ from modules.runner import train_model, eval_model
 from modules.utils import *
 
 from modules.model import FewShotClip
-
+#torch.autograd.set_detect_anomaly(True)
 
 def set_random_seed(seed):
     random.seed(seed)
@@ -58,7 +58,6 @@ def get_arguments():
     return args
 
 def main():
-
     # Load config file
     args = get_arguments()
     set_random_seed(args.seed)
