@@ -73,7 +73,7 @@ class Datum:
         classname (str): class name.
     """
 
-    def __init__(self, impath='', target_path='', label=-1, classname=''):
+    def __init__(self, impath='', target_path='', label=-1, classname='', imgtype='original'):
         assert isinstance(impath, str)
         assert isinstance( target_path, str)
         assert isinstance(classname, str)
@@ -83,6 +83,7 @@ class Datum:
         self._target_path = target_path
         self._label = label
         self._classname = classname
+        self._img_type = imgtype
 
 
     @property
@@ -98,13 +99,17 @@ class Datum:
         return self._classname
     
     @property
-    def  target_path(self):
+    def target_path(self):
         return self._target_path
+    
+    @property
+    def img_type(self):
+        return self._img_type
     
     
     def __repr__(self):
         return (f"Datum(impath={self.impath}, target_path={self.target_path}, "
-                f"label={self.label}, classname={self.classname}")
+                f"label={self.label}, classname={self.classname}, img_type={self.img_type}")
 
 
 class DatasetBase:
@@ -331,25 +336,7 @@ class DatasetWrapper(TorchDataset):
             'impath': item.impath # historic map
         }
 
-        # if in image2image case, create a target image
-        if self.task == 'image2image':
-            #target_img = read_image(item.todaypath)
-            target_img = read_image(item.target_path)
-
-            if isinstance(self.transform, (list, tuple)):
-                for i, tfm in enumerate(self.transform):
-                    target_img = self._transform_image(tfm, target_img)
-                    keyname = 'target_img'
-                    if (i + 1) > 1:
-                        keyname += str(i + 1)
-                    output[keyname] = target_img
-            else:
-                  target_img = self._transform_image(self.transform, target_img)
-            
-        else: # else we are in image2text and don't need the second image
-            target_img = torch.zeros(1)
-
-        output['target_img'] = target_img
+        output['target_img'] = item.img_type
 
         img0 = read_image(item.impath)
 

@@ -1,5 +1,5 @@
 import os
-
+import re
 from .utils import Datum, DatasetBase, read_json, write_json, build_data_loader
 from .oxford_pets import OxfordPets
 
@@ -35,13 +35,79 @@ class Circuits(DatasetBase):
 
         self.template = circuit_templates
 
-        train, val, test = OxfordPets.read_split(self.split_path, self.image_dir)
+        train, val, test = self.read_split(self.split_path, self.image_dir)
 
         n_shots_val = min(num_shots, 4)
         #val = self.generate_fewshot_dataset(val, num_shots=n_shots_val)
         #train = self.generate_fewshot_dataset(train, num_shots=num_shots)
 
         super().__init__(train_x=train, val=val, test=test)
+
+    
+    @staticmethod
+    def read_split(filepath, path_prefix):
+        def _convert(items, train=False):
+            out = []
+            for impath, label, classname in items:
+                # remove .png and keep file name eg: 1
+                original_filename= os.path.splitext(impath)[0] 
+
+                # path of original image
+                # path_prefix = dataset/circuit-diagrams/data
+                # impath = dataset/circuit-diagrams/data/1.png
+                impath = os.path.join(path_prefix, impath) 
+
+                # insert the original image
+                item = Datum(
+                    impath=impath,
+                    label=int(label),
+                    classname=classname,
+                    imgtype="original"
+                )
+                out.append(item)
+
+                # concept of label preserving and breaking is applied only to training
+                if train:
+                    # dataset/circuit-diagrams/data/label_preserving
+                    preserving_dir_path = os.path.join(path_prefix, "label_preserving")
+                    
+                    # dataset/circuit-diagrams/data/label_breaking
+                    breaking_dir_path = os.path.join(path_prefix, "label_breaking")
+
+                    # for each original image, take its preserving and its breaking images
+                    for path in [preserving_dir_path, breaking_dir_path]:
+
+                        # select imgtype based on path i am currently in
+                        imgtype = "preserving" if "preserving" in path else "breaking"
+
+                        # dataset/circuit-diagrams/data/label_*/1
+                        img_path = os.path.join(path, original_filename)
+
+                        '''check if folder exists, should always be true as we generate samples from train set
+                        and enter here only if we are training'''
+                        if os.path.exists(img_path):
+                            # loop on all samples generated for the original image
+                            # 1.png, 2.png.....
+                            for filename in os.listdir(img_path):
+                                # dataset/circuit-diagrams/data/label_*1/1.png
+                                sample_path = os.path.join(img_path, filename)
+                                
+                                item = Datum(
+                                    impath=sample_path,
+                                    label=int(label),
+                                    classname=classname,
+                                    imgtype=imgtype
+                                )
+                                out.append(item)
+            return out
+        
+        print(f'Reading split from {filepath}')
+        split = read_json(filepath)
+        train = _convert(split['train'], True)
+        val = _convert(split['val'])
+        test = _convert(split['test'])
+
+        return train, val, test
 
         
 
