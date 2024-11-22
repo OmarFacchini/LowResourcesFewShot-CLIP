@@ -4,6 +4,10 @@ import torch.nn.functional as F
 import torch.nn as nn
 import modules.clip as clip
 
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import numpy as np
+
 def cls_acc(output, target, topk=1):
     pred = output.topk(topk, 1, True, True)[1].t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
@@ -115,3 +119,81 @@ def search_hp(cfg, cache_keys, cache_values, features, labels, clip_weights, ada
         print("\nAfter searching, the best accuarcy: {:.2f}.\n".format(best_acc))
 
     return best_beta, best_alpha
+
+
+def plot_confusion_matrix(targets, predictions):
+    cm = confusion_matrix(targets, predictions)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot(cmap='viridis')
+    plt.title("Confusion Matrix")
+    plt.show()
+    
+    # save plot 
+    plt.savefig('confusion_matrix.png')
+    
+def denormalize_image(image, mean, std):
+    """
+    Undo normalization for visualization.
+    Args:
+        image (numpy.ndarray): Normalized image (C, H, W).
+        mean (list or tuple): Mean values used for normalization.
+        std (list or tuple): Std values used for normalization.
+    Returns:
+        numpy.ndarray: Denormalized image (H, W, C) in [0, 1].
+    """
+    image = image.transpose(1, 2, 0)  # Convert from (C, H, W) to (H, W, C)
+    image = image * std + mean        # Denormalize
+    image = np.clip(image, 0, 1)      # Clip to valid range
+    return image
+
+def plot_evaluation_results(images, targets, predictions, similarities, k=5):
+    # Identify correct and incorrect examples
+    targets = np.array(targets)
+    predictions = np.array(predictions)
+    similarities = np.array(similarities)
+    correct_mask = targets == predictions
+    incorrect_mask = ~correct_mask
+
+    correct_similarities = similarities[correct_mask, targets[correct_mask]]
+    incorrect_similarities = similarities[incorrect_mask, targets[incorrect_mask]]
+
+    # Get indices for top k correctly and incorrectly classified
+    topk_correct_idx = np.argsort(correct_similarities)[-k:][::-1]
+    topk_incorrect_idx = np.argsort(incorrect_similarities)[:k]
+    
+    # get 10 random indices
+    random_idx = np.random.choice(len(images), k)
+    # visualize random examples
+    fig, axes = plt.subplots(1, k, figsize=(15, 3))
+    for i, idx in enumerate(random_idx):
+        axes[i].imshow(images[idx].transpose(1, 2, 0))
+        axes[i].set_title(f"Target: {targets[idx]}, Pred: {predictions[idx]}")
+        axes[i].axis('off')
+    plt.suptitle(f"Random Examples")
+    plt.show()
+    # save
+    plt.savefig(f'random_examples.png')
+    
+    exit()
+
+    # Visualize top k correctly classified examples
+    fig, axes = plt.subplots(1, k, figsize=(15, 3))
+    for i, idx in enumerate(topk_correct_idx):
+        axes[i].imshow(images[correct_mask][idx].transpose(1, 2, 0))
+        axes[i].set_title(f"Sim: {correct_similarities[idx]:.2f}")
+        axes[i].axis('off')
+    plt.suptitle(f"Top {k} Correctly Classified")
+    plt.show()
+    # save
+    plt.savefig(f'top{k}_correct.png')
+
+    # Visualize top k incorrectly classified examples
+    fig, axes = plt.subplots(1, k, figsize=(15, 3))
+    for i, idx in enumerate(topk_incorrect_idx):
+        axes[i].imshow(images[incorrect_mask][idx].transpose(1, 2, 0))
+        axes[i].set_title(f"Sim: {incorrect_similarities[idx]:.2f}")
+        axes[i].axis('off')
+    plt.suptitle(f"Top {k} Incorrectly Classified")
+    plt.show()
+    # save
+    plt.savefig(f'top{k}_incorrect.png')

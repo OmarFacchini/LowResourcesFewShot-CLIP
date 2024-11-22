@@ -2,6 +2,7 @@
 import torch
 import torch.nn.functional as F
 import os
+import numpy as np
 
 # Local Modules
 from .utils import *
@@ -28,18 +29,40 @@ def eval_model(args, model, loader, dataset, target_loader, task_type):
 
     acc = 0.
     tot_samples = 0
+    
+    all_images = []
+    all_targets = []
+    all_predictions = []
+    all_similarities = []
+    
     with torch.no_grad():
         for i, (images, target, target_f) in enumerate(loader):
             images, target = images.cuda(), target.cuda()
             with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
                 image_features = model.encode_image(images)
                 image_features = image_features/image_features.norm(dim=-1, keepdim=True)
+                
             cosine_similarity = image_features @ target_features.t()
+            pred = cosine_similarity.argmax(dim=-1)
+            
             acc += cls_acc(cosine_similarity, target) * len(cosine_similarity)
             tot_samples += len(cosine_similarity)
+            
+            # collect data 
+            all_images.extend(images.cpu().numpy())
+            all_targets.extend(target.cpu().numpy())
+            all_predictions.extend(pred.cpu().numpy())
+            all_similarities.extend(cosine_similarity.cpu().numpy())
+            
     acc /= tot_samples
+    
+    # convert data to numpy arrays
+    all_images = np.array(all_images)
+    all_targets = np.array(all_targets)
+    all_predictions = np.array(all_predictions)
+    all_similarities = np.array(all_similarities)
 
-    return acc
+    return acc, all_images, all_targets, all_predictions, all_similarities
 
 
 def train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, task_type):
@@ -133,11 +156,13 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
         # Eval
         if VALIDATION:
             model.eval()
-            acc_val = eval_model(args, model, val_loader, dataset, target_loader, task_type)
+            acc_val, images, targets, predictions, similarities = eval_model(args, model, val_loader, dataset, target_loader, task_type)
             print("**** Val accuracy: {:.2f}. ****\n".format(acc_val))
     
-    acc_test = eval_model(args, model, test_loader, dataset, target_loader, task_type)
+    acc_test, images, targets, predictions, similarities = eval_model(args, model, test_loader, dataset, target_loader, task_type)
     print("**** Final test accuracy: {:.2f}. ****\n".format(acc_test))
+    # plot_confusion_matrix(targets, predictions)
+    plot_evaluation_results(images, targets, predictions, similarities) 
     
     if args.save_path != None:
         full_path = os.path.join(args.save_path, str(args.filename) + '.pth')

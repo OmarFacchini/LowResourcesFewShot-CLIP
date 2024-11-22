@@ -107,8 +107,9 @@ def main():
     print("MODEL SIZE => ", sum(p.numel() for p in model.parameters() if p.requires_grad))
     
     if args.eval_only:
-        acc_test = eval_model(args, model, test_loader, dataset, target_loader, task_type)
+        acc_test, images, targets, predictions, similarities = eval_model(args, model, test_loader, dataset, target_loader, task_type)
         print("**** Final test accuracy: {:.2f}. ****\n".format(acc_test))
+        plot_confusion_matrix(targets, predictions)
     else :
         train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, task_type)
 
