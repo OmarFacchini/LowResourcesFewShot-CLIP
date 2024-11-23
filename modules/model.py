@@ -47,6 +47,7 @@ class FewShotClip(nn.Module):
         self.encode_text = self.clip_model.encode_text
         self.encode_image = self.clip_model.encode_image
 
+
         # Turn off gradients for CLIP model
         print("Turning off all gradients for CLIP model.")
         for p in self.clip_model.parameters():
@@ -81,3 +82,5 @@ class FewShotClip(nn.Module):
         for param in self.parameters():
             if param.requires_grad:
                 param.data = param.data.float()
+        
+        

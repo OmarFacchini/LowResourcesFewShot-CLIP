@@ -3,6 +3,8 @@ import torch
 import torch.nn.functional as F
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Local Modules
 from .utils import *
@@ -85,7 +87,9 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     # Prepare class features according to modality
     model = model.eval()
     target_features = get_text_labels_features(model, dataset) if task_type == 'image2text' else get_vision_labels_features(model, target_loader)
-
+    
+    # attention_mask = model.clip_model.transformer.resblocks[0].attention_mask.cpu().detach().numpy()
+    
     # Extract Query - Key pairs for Meta-Adapter
     if args.enable_MetaAdapter:
         model = model.eval()
@@ -104,7 +108,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, total_iters, eta_min=1e-6)
 
     # training model
-    scaler = torch.amp.GradScaler()
+    scaler = torch.cuda.amp.GradScaler()
     count_iters = 0
     finish = False
     
@@ -153,10 +157,13 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             scheduler.step()
             
             count_iters += 1
+
             
             if count_iters == total_iters:
                 break
+
             
+
         if count_iters < total_iters:
             acc_train /= tot_samples
             loss_epoch /= tot_samples
