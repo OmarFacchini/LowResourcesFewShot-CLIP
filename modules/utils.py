@@ -120,80 +120,222 @@ def search_hp(cfg, cache_keys, cache_values, features, labels, clip_weights, ada
 
     return best_beta, best_alpha
 
+# ======================== 
+# Plotting functions
 
-def plot_confusion_matrix(targets, predictions):
-    cm = confusion_matrix(targets, predictions)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot(cmap='viridis')
-    plt.title("Confusion Matrix")
-    plt.show()
+def plot_confusion_matrix(targets, predictions, classnames):
+    '''
+    Plot confusion matrix with improved handling of long class names
     
-    # save plot 
-    plt.savefig('confusion_matrix.png')
-    
-def denormalize_image(image, mean, std):
-    """
-    Undo normalization for visualization.
     Args:
-        image (numpy.ndarray): Normalized image (C, H, W).
-        mean (list or tuple): Mean values used for normalization.
-        std (list or tuple): Std values used for normalization.
-    Returns:
-        numpy.ndarray: Denormalized image (H, W, C) in [0, 1].
+        targets: True labels
+        predictions: Predicted labels
+        classnames: List of class names
+    '''
+    # Compute confusion matrix
+    cm = confusion_matrix(targets, predictions)
+    
+    # Create figure with adjusted size based on number of classes
+    n_classes = len(classnames)
+    plt.figure(figsize=(max(8, n_classes * 0.8), max(8, n_classes * 0.8)))
+    
+    # Shorten class names if they're too long
+    shortened_classnames = []
+    for name in classnames:
+        if len(name) > 20:  # Adjust threshold as needed
+            # Keep first and last few characters
+            shortened_name = name[:10] + '...' + name[-7:]
+            shortened_classnames.append(shortened_name)
+        else:
+            shortened_classnames.append(name)
+    
+    # Create confusion matrix display
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=shortened_classnames)
+    
+    # Plot with customization
+    disp.plot(
+        xticks_rotation=45,  # Rotate labels 45 degrees
+        values_format='.0f',  # Show absolute numbers without decimals
+        # cmap='Blues',        # Use Blues colormap for better readability
+    )
+    
+    # Adjust label properties
+    plt.xticks(fontsize=8, ha='right')  # Align rotated labels to the right
+    plt.yticks(fontsize=8)
+    
+    # Add title with padding
+    plt.title('Confusion Matrix', pad=20)
+    
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout()
+    
+    # Save figure with high DPI
+    plt.savefig('plot/confusion_matrix.png', dpi=300, bbox_inches='tight')
+    plt.show()
+    
+def plot_topk_images_for_class(images, targets, predictions, similarities, classnames, k=3, mode="correct"):
     """
-    image = image.transpose(1, 2, 0)  # Convert from (C, H, W) to (H, W, C)
-    image = image * std + mean        # Denormalize
-    image = np.clip(image, 0, 1)      # Clip to valid range
-    return image
-
-def plot_evaluation_results(images, targets, predictions, similarities, k=5):
-    # Identify correct and incorrect examples
-    targets = np.array(targets)
-    predictions = np.array(predictions)
-    similarities = np.array(similarities)
-    correct_mask = targets == predictions
-    incorrect_mask = ~correct_mask
-
-    correct_similarities = similarities[correct_mask, targets[correct_mask]]
-    incorrect_similarities = similarities[incorrect_mask, targets[incorrect_mask]]
-
-    # Get indices for top k correctly and incorrectly classified
-    topk_correct_idx = np.argsort(correct_similarities)[-k:][::-1]
-    topk_incorrect_idx = np.argsort(incorrect_similarities)[:k]
+    Plot top-k images for each class based on correctness and similarity.
     
-    # get 10 random indices
-    random_idx = np.random.choice(len(images), k)
-    # visualize random examples
-    fig, axes = plt.subplots(1, k, figsize=(15, 3))
-    for i, idx in enumerate(random_idx):
-        axes[i].imshow(images[idx].transpose(1, 2, 0))
-        axes[i].set_title(f"Target: {targets[idx]}, Pred: {predictions[idx]}")
-        axes[i].axis('off')
-    plt.suptitle(f"Random Examples")
-    plt.show()
-    # save
-    plt.savefig(f'random_examples.png')
+    Args:
+        images (np.ndarray): Array of images (N, C, H, W)
+        targets (np.ndarray): Array of true labels
+        predictions (np.ndarray): Array of predicted labels
+        similarities (np.ndarray): Array of cosine similarities
+        classnames (list): List of class names
+        k (int): Number of top images to consider per class
+        mode (str): "correct" for correctly classified, "incorrect" for misclassified
+    """
+    assert mode in {"correct", "incorrect"}, "Mode must be 'correct' or 'incorrect'."
     
-    exit()
-
-    # Visualize top k correctly classified examples
-    fig, axes = plt.subplots(1, k, figsize=(15, 3))
-    for i, idx in enumerate(topk_correct_idx):
-        axes[i].imshow(images[correct_mask][idx].transpose(1, 2, 0))
-        axes[i].set_title(f"Sim: {correct_similarities[idx]:.2f}")
-        axes[i].axis('off')
-    plt.suptitle(f"Top {k} Correctly Classified")
+    # Convert images from (N, C, H, W) to (N, H, W, C) and normalize for display
+    images_display = np.transpose(images, (0, 2, 3, 1))
+    images_display = (images_display - images_display.min()) / (images_display.max() - images_display.min())
+    
+    # Determine mask and title based on mode
+    if mode == "correct":
+        mask = targets == predictions
+        title = "Top Correctly Classified Images by Cosine Similarity"
+    else:
+        mask = targets != predictions
+        title = "Most Confidently Misclassified Images"
+    
+    indices = np.where(mask)[0]
+    unique_classes = np.unique(targets)
+    n_classes = len(unique_classes)
+    
+    # Calculate grid dimensions
+    n_cols = k
+    n_rows = n_classes
+    
+    # Create figure with extra space for title and class names
+    fig = plt.figure(figsize=(3 * n_cols + 2, 3 * n_rows + 1))
+    
+    # Create GridSpec with extra space at top for title
+    gs = plt.GridSpec(n_rows + 1, n_cols + 1, height_ratios=[0.3] + [1] * n_rows, 
+                      width_ratios=[0.4] + [1] * n_cols)
+    
+    # Add title in the extra row at top
+    ax_title = fig.add_subplot(gs[0, :])
+    ax_title.text(0.5, 0.5, title, fontsize=16, horizontalalignment='center', verticalalignment='center')
+    ax_title.axis('off')
+    
+    for i, class_idx in enumerate(unique_classes):
+        # Add class name or true class name in a separate column (offset by 1 row due to title)
+        ax_name = fig.add_subplot(gs[i + 1, 0])
+        label_text = classnames[class_idx] if mode == "correct" else f"True: {classnames[class_idx]}"
+        ax_name.text(0.5, 0.5, label_text, fontsize=10, horizontalalignment='center',
+                     verticalalignment='center', wrap=True)
+        ax_name.axis('off')
+        
+        # Get indices of relevant samples for this class
+        class_indices = indices[targets[indices] == class_idx]
+        if len(class_indices) == 0:
+            continue
+        
+        # Sort by similarity
+        if mode == "correct":
+            class_similarities = similarities[class_indices, class_idx]
+        else:
+            class_similarities = np.array([similarities[idx, predictions[idx]] for idx in class_indices])
+        
+        top_k_indices = class_indices[np.argsort(class_similarities)[-k:]]
+        top_k_similarities = class_similarities[np.argsort(class_similarities)[-k:]]
+        
+        # Plot top k images
+        for j in range(k):
+            if j < len(top_k_indices):
+                idx = top_k_indices[-(j+1)]
+                sim = top_k_similarities[-(j+1)]
+                if mode == "correct":
+                    subtitle = f"Similarity: {sim:.3f}"
+                else:
+                    pred_class = predictions[idx]
+                    subtitle = f"Pred: {classnames[pred_class]}\nSim: {sim:.3f}"
+                
+                ax = fig.add_subplot(gs[i + 1, j + 1])  # Offset by 1 row due to title
+                ax.imshow(images_display[idx])
+                ax.axis('off')
+                ax.set_title(subtitle, size=8)
+    
+    plt.tight_layout()
+    
+    # Save figure with extra padding at top
+    filename = 'top_correct_for_class.png' if mode == "correct" else 'top_incorrect_for_class.png'
+    plt.savefig('plot/'+ filename, bbox_inches='tight', dpi=300)
     plt.show()
-    # save
-    plt.savefig(f'top{k}_correct.png')
 
-    # Visualize top k incorrectly classified examples
-    fig, axes = plt.subplots(1, k, figsize=(15, 3))
-    for i, idx in enumerate(topk_incorrect_idx):
-        axes[i].imshow(images[incorrect_mask][idx].transpose(1, 2, 0))
-        axes[i].set_title(f"Sim: {incorrect_similarities[idx]:.2f}")
+def plot_topk_images(images, targets, predictions, similarities, classnames, k=3, mode="correct"):
+    """
+    Plot the top-k best (correctly classified) or worst (misclassified) images globally across all classes.
+    
+    Args:
+        images (np.ndarray): Array of images (N, C, H, W)
+        targets (np.ndarray): Array of true labels
+        predictions (np.ndarray): Array of predicted labels
+        similarities (np.ndarray): Array of cosine similarities
+        classnames (list): List of class names
+        k (int): Number of top images to consider
+        mode (str): "correct" for correctly classified, "incorrect" for misclassified
+    """
+    assert mode in {"correct", "incorrect"}, "Mode must be 'correct' or 'incorrect'."
+    
+    # Convert images from (N, C, H, W) to (N, H, W, C) and normalize for display
+    images_display = np.transpose(images, (0, 2, 3, 1))
+    images_display = (images_display - images_display.min()) / (images_display.max() - images_display.min())
+    
+    if mode == "correct":
+        # Get correctly classified samples
+        mask = targets == predictions
+        title = "Top Best Correctly Classified Images by Cosine Similarity"
+        similarity_values = similarities[np.arange(len(similarities)), targets]
+    else:
+        # Get misclassified samples
+        mask = targets != predictions
+        title = "Top Worst Misclassified Images by Cosine Similarity"
+        similarity_values = np.array([similarities[idx, predictions[idx]] for idx in range(len(predictions))])
+    
+    indices = np.where(mask)[0]
+    if len(indices) == 0:
+        print(f"No {'correct' if mode == 'correct' else 'incorrect'} samples to display.")
+        return
+    
+    # Sort indices by similarity
+    sorted_indices = indices[np.argsort(similarity_values[indices])]
+    top_k_indices = sorted_indices[-k:]  # Top k
+    top_k_indices = top_k_indices[::-1]  # Reverse for descending order
+    
+    # Create figure with more space for the title
+    n_cols = k
+    n_rows = 1
+    fig = plt.figure(figsize=(3 * n_cols, 4))  # Increased height to accommodate title
+    
+    # Create gridspec to manage subplot layout
+    gs = plt.GridSpec(2, 1, height_ratios=[1, 8])
+    
+    # Add title in its own subplot
+    title_ax = fig.add_subplot(gs[0])
+    title_ax.axis('off')
+    title_ax.text(0.5, 0.5, title, fontsize=16, ha='center', va='center')
+    
+    # Create subplot for images
+    image_grid = gs[1].subgridspec(n_rows, n_cols)
+    axes = [fig.add_subplot(image_grid[0, i]) for i in range(n_cols)]
+    
+    for i, idx in enumerate(top_k_indices):
+        sim = similarity_values[idx]
+        label_text = (f"Class: {classnames[targets[idx]]}\n"
+                     f"Pred: {classnames[predictions[idx]] if mode == 'incorrect' else 'Correct'}\n"
+                     f"Sim: {sim:.3f}")
+        
+        axes[i].imshow(images_display[idx])
         axes[i].axis('off')
-    plt.suptitle(f"Top {k} Incorrectly Classified")
+        axes[i].set_title(label_text, fontsize=8, pad=5)  # Added pad for spacing
+    
+    plt.tight_layout()
+    
+    # Save figure
+    filename = 'top_correct.png' if mode == "correct" else 'top_incorrect.png'
+    plt.savefig('plot/'+ filename, bbox_inches='tight', dpi=300)
     plt.show()
-    # save
-    plt.savefig(f'top{k}_incorrect.png')
+

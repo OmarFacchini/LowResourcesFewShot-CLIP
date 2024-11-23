@@ -109,7 +109,12 @@ def main():
     if args.eval_only:
         acc_test, images, targets, predictions, similarities = eval_model(args, model, test_loader, dataset, target_loader, task_type)
         print("**** Final test accuracy: {:.2f}. ****\n".format(acc_test))
-        plot_confusion_matrix(targets, predictions)
+        # plot_confusion_matrix(targets, predictions, dataset.classnames)
+        # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
+        # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
+        # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
+        # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
+        
     else :
         train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, task_type)
 

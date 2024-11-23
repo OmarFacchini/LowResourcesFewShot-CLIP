@@ -22,6 +22,13 @@ from .model import get_text_labels_features, get_vision_labels_features
 def eval_model(args, model, loader, dataset, target_loader, task_type):
     """
     Zero-shot evaluation of CLIP model
+    
+    Returns:
+    - accuracy (float): Overall accuracy
+    - images (np.array): Images from the test set
+    - targets (np.array): True labels
+    - predictions (np.array): Predicted labels
+    - similarities (np.array): Similarity scores
     """
     # Load Model on GPU
     model.eval()
@@ -42,9 +49,11 @@ def eval_model(args, model, loader, dataset, target_loader, task_type):
                 image_features = model.encode_image(images)
                 image_features = image_features/image_features.norm(dim=-1, keepdim=True)
                 
+            # calculate cosine similarity and predictions
             cosine_similarity = image_features @ target_features.t()
             pred = cosine_similarity.argmax(dim=-1)
             
+            # update accuracy
             acc += cls_acc(cosine_similarity, target) * len(cosine_similarity)
             tot_samples += len(cosine_similarity)
             
@@ -53,16 +62,17 @@ def eval_model(args, model, loader, dataset, target_loader, task_type):
             all_targets.extend(target.cpu().numpy())
             all_predictions.extend(pred.cpu().numpy())
             all_similarities.extend(cosine_similarity.cpu().numpy())
-            
+     
+    # calculate final accuracy       
     acc /= tot_samples
     
     # convert data to numpy arrays
-    all_images = np.array(all_images)
-    all_targets = np.array(all_targets)
-    all_predictions = np.array(all_predictions)
-    all_similarities = np.array(all_similarities)
+    images = np.array(all_images)
+    targets = np.array(all_targets)
+    predictions = np.array(all_predictions)
+    similarities = np.array(all_similarities)
 
-    return acc, all_images, all_targets, all_predictions, all_similarities
+    return acc, images, targets, predictions, similarities
 
 
 def train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, task_type):
@@ -156,13 +166,16 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
         # Eval
         if VALIDATION:
             model.eval()
-            acc_val, images, targets, predictions, similarities = eval_model(args, model, val_loader, dataset, target_loader, task_type)
+            acc_val, _, _, _, _ = eval_model(args, model, val_loader, dataset, target_loader, task_type)
             print("**** Val accuracy: {:.2f}. ****\n".format(acc_val))
     
-    acc_test, images, targets, predictions, similarities = eval_model(args, model, test_loader, dataset, target_loader, task_type)
-    print("**** Final test accuracy: {:.2f}. ****\n".format(acc_test))
-    # plot_confusion_matrix(targets, predictions)
-    plot_evaluation_results(images, targets, predictions, similarities) 
+    acc_test, images, targets, predictions, similarities = eval_model(args, model, test_loader, dataset, target_loader, task_type)   
+    print("**** Final test accuracy: {:.2f}. ****\n".format(acc_test)) 
+    # plot_confusion_matrix(targets, predictions, dataset.classnames)
+    # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
+    # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
+    # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
+    # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
     
     if args.save_path != None:
         full_path = os.path.join(args.save_path, str(args.filename) + '.pth')
