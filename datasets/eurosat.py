@@ -36,8 +36,8 @@ class EuroSAT(DatasetBase):
         #train, val, test = OxfordPets.read_split(self.split_path, self.image_dir)
         train, val, test = self.read_split(self.split_path, self.image_dir)
         n_shots_val = min(num_shots, 4)
-        #val = self.generate_fewshot_dataset(val, num_shots=n_shots_val)
-        #train = self.generate_fewshot_dataset(train, num_shots=num_shots)
+        val = self.generate_fewshot_dataset(val, num_shots=n_shots_val)
+        train = self.generate_fewshot_dataset(train, num_shots=num_shots)
         
         super().__init__(train_x=train, val=val, test=test)
     

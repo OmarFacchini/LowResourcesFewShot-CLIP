@@ -1,47 +1,45 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from tqdm import tqdm
 
 from .lora.loralib import apply_lora
 from .clip import *
 from .meta_adapter.meta_adapter import MetaAdapter
 
-def get_text_labels_features(model, dataset):
+def get_text_target_features(model, dataset, dtype_autocast=torch.float16):
     """
     Parse through Text encoder text class features, normalize and return
     """
     template = dataset.template[0] 
     texts = [template.format(classname.replace('_', ' ')) for classname in dataset.classnames]
-    with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+    with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
         texts = clip.tokenize(texts).cuda()
         text_embedding = model.encode_text(texts)
         text_features = text_embedding/text_embedding.norm(dim=-1, keepdim=True)
 
     return text_features
 
-def get_vision_labels_features(model, loader):
+def get_vision_target_features(model, loader, dtype_autocast=torch.float16):
     """
     Parse through Vision encoder vision class features, normalize and return
     """
-    print("Encoding vision features for target labels.")
     # Data augmentation for the cache model
     features_list = []
-    for i, (images, target, target_f) in enumerate(tqdm(loader)):
+    for i, (images, target, target_f) in enumerate(loader):
         images = images.cuda()
-        with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+        with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
             image_features = model.encode_image(images)
             features_list.append(image_features)
-    
-    with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
-        vision_features = torch.stack(features_list, dim=0).mean(dim=0)    
-        normalized_vision_features = vision_features/vision_features.norm(dim=-1, keepdim=True)
+    #with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
+    vision_features = torch.cat(features_list, dim=0)    
+    normalized_vision_features = vision_features/vision_features.norm(dim=-1, keepdim=True)
 
     return normalized_vision_features
 
 
+
 class FewShotClip(nn.Module):
-    def __init__(self, args, clip_model, dataset, target_loader, val_loader, task_type="image2text"):
+    def __init__(self, args, clip_model):
         super().__init__()
         self.clip_model = clip_model
         self.encode_text = self.clip_model.encode_text

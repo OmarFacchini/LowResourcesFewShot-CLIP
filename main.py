@@ -11,7 +11,7 @@ import modules.clip as clip
 from modules.runner import train_model, eval_model
 from modules.utils import *
 
-from modules.model import FewShotClip
+from modules.model import FewShotClip, get_text_target_features, get_vision_target_features
 #torch.autograd.set_detect_anomaly(True)
 
 def set_random_seed(seed):
@@ -93,31 +93,36 @@ def main():
             transforms.ToTensor(),
             transforms.Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711))
         ])
-        
         if args.dataset == 'imagenet':
             train_loader = torch.utils.data.DataLoader(dataset.train_x, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
 
-    model = FewShotClip(args, clip_model, dataset, target_loader, val_loader, task_type=task_type).cuda()
+
+    # Prepare model
+    model = FewShotClip(args, clip_model).cuda()
     if args.load_ckpt is not None:
         checkpoint = torch.load(args.load_ckpt, weights_only=True)
         model.load_state_dict(checkpoint['model_state_dict'])
-
     print("MODEL SIZE => ", sum(p.numel() for p in model.parameters() if p.requires_grad))
-    
+
+    # Prepare class features according to modality
+    with torch.no_grad():
+        model = model.eval()
+        target_features = get_text_target_features(model, dataset) if task_type == 'image2text' else get_vision_target_features(model, target_loader)
+
     if args.eval_only:
-        acc_test, images, targets, predictions, similarities = eval_model(args, model, test_loader, dataset, target_loader, task_type)
-        print("**** Final test accuracy: {:.2f}. ****\n".format(acc_test))
+        print("Testing model...")
+        acc_test, images, targets, predictions, similarities = eval_model(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
+        print("**** Test accuracy: {:.3f}. ****\n".format(acc_test))
         # plot_confusion_matrix(targets, predictions, dataset.classnames)
         # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
         # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
         # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
         # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
         # plot_improved_predictions(images, targets, predictions, similarities, dataset.classnames, 3)
-        
     else :
-        train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, task_type)
+        train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, target_features, task_type)
 
 if __name__ == '__main__':
     main()
