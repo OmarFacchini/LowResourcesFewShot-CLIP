@@ -21,18 +21,21 @@ from .meta_adapter.meta_adapter import MetaAdapter
 from .clip import *
 from .model import get_text_target_features, get_vision_target_features
 
-def eval_model(args, model, logit_scale, loader, target_features, support_img_loader=None, meta_query=None, meta_key=None):
+
+def eval_and_get_data(args, model, logit_scale, loader, target_features, support_img_loader=None, meta_query=None, meta_key=None):
     """
-    Zero-shot evaluation of CLIP model
+    Runs evaluation of FewShotClip model on the given loader.
+    Tracking useful data for further analysis.
     
     Returns:
     - accuracy (float): Overall accuracy
     - images (np.array): Images from the test set
     - targets (np.array): True labels
     - predictions (np.array): Predicted labels
+    - features (np.array): Image features
     - similarities (np.array): Similarity scores
     """
-    if (meta_key is None or meta_query is None) and support_img_loader is None:
+    if args.enable_MetaAdapter and (meta_key is None or meta_query is None) and support_img_loader is None:
         raise ValueError("Neither support_img_loader nor (meta_key and meta_query) provided. Please provide one of them.")
 
     acc = 0.
@@ -41,7 +44,7 @@ def eval_model(args, model, logit_scale, loader, target_features, support_img_lo
     all_targets = []
     all_predictions = []
     all_similarities = []
-    
+    all_features = []
     # Evaluation mode
     model.eval()
     with torch.no_grad():
@@ -77,19 +80,66 @@ def eval_model(args, model, logit_scale, loader, target_features, support_img_lo
             all_images.extend(images.cpu().numpy())
             all_targets.extend(target.cpu().numpy())
             all_predictions.extend(pred.cpu().numpy())
+            all_features.extend(image_features.cpu().numpy() if not args.enable_MetaAdapter else meta_adaptation.cpu().numpy())
             all_similarities.extend(cosine_similarity.cpu().numpy())
      
     # calculate final accuracy       
     acc /= tot_samples
-    
     # convert data to numpy arrays
     images = np.array(all_images)
     targets = np.array(all_targets)
     predictions = np.array(all_predictions)
+    features = np.array(all_features)
     similarities = np.array(all_similarities)
+    
+    return acc, images, targets, predictions, features, similarities
 
-    return acc, images, targets, predictions, similarities
 
+def eval_model(args, model, logit_scale, loader, target_features, support_img_loader=None, meta_query=None, meta_key=None):
+    """
+    Runs evaluation of FewShotClip model on the given loader.
+    
+    Returns:
+    - accuracy (float): Overall accuracy
+    """
+    if args.enable_MetaAdapter and (meta_key is None or meta_query is None) and support_img_loader is None:
+        raise ValueError("Neither support_img_loader nor (meta_key and meta_query) provided. Please provide one of them.")
+
+    acc = 0.
+    tot_samples = 0
+    # Evaluation mode
+    model.eval()
+    with torch.no_grad():
+        # Extract Query - Key pairs for Meta-Adapter (if enabled and key/query not provided)
+        if args.enable_MetaAdapter and (meta_query is None or meta_key is None) :
+            support_features = get_vision_target_features(model, support_img_loader) # Support features
+            meta_query = target_features # Category embeddings
+            meta_key = support_features.reshape(meta_query.shape[0], -1, meta_query.shape[1]) # Support embedding
+
+        # Evaluation loop
+        for i, (images, target, target_f) in enumerate(loader):
+            images, target = images.cuda(), target.cuda()
+            with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                image_features = model.encode_image(images)
+                image_features = image_features/image_features.norm(dim=-1, keepdim=True)
+            
+            # calculate cosine similarity and predictions
+            if args.enable_MetaAdapter:
+                with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+                    meta_adaptation = model.meta_adapter(meta_query, meta_key, meta_key)
+                cosine_similarity = logit_scale * image_features @ meta_adaptation.t()
+            else :
+                # directly get similarity scores with class features
+                cosine_similarity = logit_scale * image_features @ target_features.t()
+
+            # update accuracy
+            acc += cls_acc(cosine_similarity, target) * len(cosine_similarity)
+            tot_samples += len(cosine_similarity)
+            
+    # calculate final accuracy       
+    acc /= tot_samples
+
+    return acc
 
 def train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, target_features, task_type):
     """
@@ -97,7 +147,6 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     (currently is a Copy from run_lora from LoRa-challengingDatasets/modules/lora/lora.py)
     """
     # attention_mask = model.clip_model.transformer.resblocks[0].attention_mask.cpu().detach().numpy()
-    
     # Extract Query - Key pairs for Meta-Adapter
     if args.enable_MetaAdapter:
         model.eval()
@@ -105,6 +154,8 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             support_features = get_vision_target_features(model, val_loader)
             meta_query = target_features # Category embeddings
             meta_key = support_features.reshape(meta_query.shape[0], -1, meta_query.shape[1]) # Support embedding
+    else :
+        meta_query, meta_key = None, None
 
     # Set up optimizer and scheduler
     total_iters = args.n_iters * args.shots
@@ -115,7 +166,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     scaler = torch.cuda.amp.GradScaler()
     count_iters = 0
     best_acc = 0
-    best_model = model
+    best_weights = {}
 
     while count_iters < total_iters:
         model.train()
@@ -174,26 +225,26 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             print(f"LR: {current_lr:.6f}, Acc: {acc_train:.4f}, Loss: {loss_epoch:.4f}")
 
         model.eval()
-        acc_val, _, _, _, _ = eval_model(args, model, logit_scale, val_loader, val_loader, target_features, meta_query=meta_query, meta_key=meta_key)
+        acc_val = eval_model(args, model, logit_scale, val_loader, target_features, meta_query=meta_query, meta_key=meta_key)
         print(f"**** Validation accuracy: {acc_val:.2f}. ****\n")
         
         # Save best model (maximizing validation accuracy) ((!!! THAT'S PRETTY WRONG IN FEW-SHOT CONTEXT !!!))
         if acc_val > best_acc:
             best_acc = acc_val
-            best_model = copy.deepcopy(model).to('cpu')
-
-    best_model = best_model.cuda()
-    acc_test, images, targets, predictions, similarities = eval_model(args, best_model, logit_scale, test_loader, val_loader, target_features, meta_query=meta_query, meta_key=meta_key)  
+            best_weights = copy.deepcopy(model.state_dict())
+    
+    
+    model.load_state_dict(best_weights)
+    acc_test = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)  
     print(f"**** Test accuracy: {acc_test:.2f}. ****\n") 
     # plot_confusion_matrix(targets, predictions, dataset.classnames)
     # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
     # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
     # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
     # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
-    
     if args.save_path != None:
         full_path = os.path.join(args.save_path, str(args.filename) + '.pth')
-        torch.save({'model_state_dict':best_model.state_dict()}, full_path)
+        torch.save({'model_state_dict': best_weights}, full_path)
         print("Model saved => ", full_path)
         
     return

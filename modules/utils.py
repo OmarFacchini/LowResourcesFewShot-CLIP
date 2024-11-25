@@ -3,6 +3,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import modules.clip as clip
+import csv
 
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
@@ -86,7 +87,6 @@ def pre_load_features(cfg, split, clip_model, loader):
 
     return features, labels
 
-
 def search_hp(cfg, cache_keys, cache_values, features, labels, clip_weights, adapter=None):
     if cfg['search_hp'] == True:
 
@@ -119,6 +119,25 @@ def search_hp(cfg, cache_keys, cache_values, features, labels, clip_weights, ada
         print("\nAfter searching, the best accuarcy: {:.2f}.\n".format(best_acc))
 
     return best_beta, best_alpha
+
+def model_out_to_csv(features, targets, predictions, similarities, csv_filename='evaluation_results.csv'):
+    # Prepare the rows for the CSV
+    rows = []
+    for i in range(len(targets)):
+        row = {
+            'target': targets[i],
+            'prediction': predictions[i],
+            'similarity': similarities[i].tolist(),
+            'features': features[i].tolist()
+        }
+        rows.append(row)
+    # Write to CSV file
+    with open(csv_filename, mode='w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=['features', 'target', 'prediction', 'similarity'])
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+    print(f"Results saved to {csv_filename}")
 
 # ======================== 
 # Plotting functions

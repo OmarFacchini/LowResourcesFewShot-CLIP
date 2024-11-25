@@ -10,7 +10,7 @@ METRICS = True
 UMAP_PLOT = True
 DATASET = 'eurosat'
 
-def get_data(csv_filename='evaluation_results.csv', json_label_map='data/eurosat/label_map.json'):
+def get_data(csv_filename='data/evaluation_results.csv', json_label_map='data/eurosat/label_map.json'):
     # Open and read the JSON file
     with open(json_label_map, 'r') as file:
         label_map = json.load(file)

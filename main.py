@@ -4,11 +4,12 @@ import random
 import numpy as np
 import torch
 import torchvision.transforms as transforms
+import csv
 # Local modules
 from datasets import build_dataset
 from datasets.utils import build_data_loader
 import modules.clip as clip
-from modules.runner import train_model, eval_model
+from modules.runner import train_model, eval_model, eval_and_get_data
 from modules.utils import *
 
 from modules.model import FewShotClip, get_text_target_features, get_vision_target_features
@@ -21,7 +22,6 @@ def set_random_seed(seed):
     torch.cuda.manual_seed_all(seed)
 
 def get_arguments():
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', default=1, type=int)
     # Dataset arguments
@@ -47,7 +47,7 @@ def get_arguments():
     parser.add_argument('--load_ckpt', default=None, help='Modle checkpoint to load')
 
     parser.add_argument('--eval_only', default=False, action='store_true', help='only evaluate the LoRA modules (save_path should not be None)')
-    
+    parser.add_argument('--model_stats_to_csv', default=False, action='store_true', help='save features for visualization / analysis')
     # flags to add modules to CLIP
     parser.add_argument('--enable_MetaAdapter', default=False, action='store_true', help='add Meta-Adapter to CLIP model')
     parser.add_argument('--enable_lora', default=False, action='store_true', help='add LoRA adapter to CLIP model')
@@ -113,14 +113,18 @@ def main():
 
     if args.eval_only:
         print("Testing model...")
-        acc_test, images, targets, predictions, similarities = eval_model(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
+        if not args.model_stats_to_csv:
+            acc_test = eval_model(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
+        else :
+            acc_test, images, targets, predictions, features, similarities = eval_and_get_data(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
+            model_out_to_csv(features, targets, predictions, similarities, csv_filename='data/evaluation_results.csv')
+            # plot_confusion_matrix(targets, predictions, dataset.classnames)
+            # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
+            # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
+            # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
+            # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
+            # plot_improved_predictions(images, targets, predictions, similarities, dataset.classnames, 3)
         print("**** Test accuracy: {:.3f}. ****\n".format(acc_test))
-        # plot_confusion_matrix(targets, predictions, dataset.classnames)
-        # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
-        # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
-        # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
-        # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
-        # plot_improved_predictions(images, targets, predictions, similarities, dataset.classnames, 3)
     else :
         train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, target_features, task_type)
 
