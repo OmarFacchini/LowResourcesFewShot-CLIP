@@ -9,6 +9,7 @@ import torchvision.transforms as transforms
 
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from skimage.transform import resize
 import numpy as np
 
 def cls_acc(output, target, topk=1):
@@ -386,3 +387,60 @@ def plot_attention_map(impath, preprocess, clip_model, name):
     ax.imshow(image_attention[0].reshape(14, 14))
     fig.subplots_adjust(hspace=0, wspace=0)
     fig.savefig(f"{name}_{1}")
+
+
+def plot_attention_map_enhance(impath, preprocess, clip_model, name):
+    # Transformation to match CLIP model's input requirements
+    transform_image = transforms.Compose([
+        transforms.Resize(clip_model.visual.input_resolution, interpolation=Image.BICUBIC),
+        transforms.CenterCrop(clip_model.visual.input_resolution),
+        lambda image: image.convert("RGB"),
+    ])
+
+    # Open and preprocess the image
+    img = Image.open(impath)
+    img_input = preprocess(img).unsqueeze(0)
+
+    # Get attention map
+    with torch.no_grad(): 
+        image_attention = clip_model.encode_image_attention(img_input)
+        attention_map = image_attention[0].reshape(14, 14).cpu().numpy()
+
+    # Normalize attention map
+    attention_map = (attention_map - attention_map.min()) / (attention_map.max() - attention_map.min())
+
+    # Create a heatmap with a threshold to highlight most salient regions
+    threshold = np.percentile(attention_map, 50)  # Adjust this percentile as needed
+    salient_mask = attention_map >= threshold
+
+    # Create figure
+    fig = plt.figure(figsize=[10, 5])
+    ax = fig.add_subplot(1, 2, 1)
+    
+    # Original image
+    original_img = transform_image(img)
+    ax.imshow(original_img)
+    ax.set_title('Original Image')
+    ax.axis('off')
+    
+    ax = fig.add_subplot(1, 2, 2)
+    ax.set_title('Attention Map Overlay')
+    ax.imshow(original_img)
+
+    # Overlay salient attention map
+    cmap = plt.cm.get_cmap('jet')  # You can change 'jet' to other colormaps like 'viridis', 'plasma', etc.
+    salient_heatmap = np.zeros_like(attention_map)
+    salient_heatmap[salient_mask] = attention_map[salient_mask]
+    
+    # Resize attention map to match image dimensions
+    
+    salient_heatmap_resized = resize(salient_heatmap, (original_img.height, original_img.width), 
+                                     order=3, mode='constant')
+    
+    # Color the most salient regions
+    ax.imshow(cmap(salient_heatmap_resized), alpha=0.3, cmap=cmap)
+    
+    ax.axis('off')
+    plt.tight_layout()
+    plt.savefig(f"{name}_attention.png", bbox_inches='tight', pad_inches=0)
+    plt.close()
