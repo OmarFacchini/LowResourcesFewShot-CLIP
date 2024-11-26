@@ -28,6 +28,7 @@ def get_data(csv_filename='data/evaluation_results.csv', json_label_map='data/eu
     return features, targets, string_targets, predictions
 
 def compute_silhouette_scores(embeddings, targets, predictions):
+    # Silhouette score is a measure of how similar an object is to its own cluster compared to other clusters.
     silhouette_complete = silhouette_score(embeddings, targets, metric='euclidean')
     correct_indices = targets == predictions
     silhouette_correct = silhouette_score(embeddings[correct_indices], targets[correct_indices], metric='euclidean') if np.sum(correct_indices) > 0 else None
@@ -37,12 +38,20 @@ def compute_silhouette_scores(embeddings, targets, predictions):
     return silhouette_complete, silhouette_correct, silhouette_wrong
 
 def compute_ari(true_labels, predicted_labels):
+    # ARI is a measure of the similarity between cluster assignments.
+    # It's robust to cluster imbalance.
     ari = adjusted_rand_score(true_labels, predicted_labels)
     return ari
 
 def compute_clustering_metrics(true_labels, predicted_labels):
+    # Measures whether each cluster contains only data points that are members of a single ground truth class.
+    # It's a synonym of cluster "purity".
+    # "Are the clusters pure with respect to the ground truth?"
     homogeneity = homogeneity_score(true_labels, predicted_labels)
+    # Ensures that all data points from a single ground truth class are assigned to the same predicted cluster.
+    # "Are all points in a ground truth class assigned to the same cluster?"
     completeness = completeness_score(true_labels, predicted_labels)
+    # Harmonic mean of homogeneity and completeness.
     v_measure = v_measure_score(true_labels, predicted_labels)
     return homogeneity, completeness, v_measure
 
