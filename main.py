@@ -132,7 +132,6 @@ def main():
             # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
             # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
             # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
-            # plot_improved_predictions(images, targets, predictions, similarities, dataset.classnames, 3)
         print("**** Test accuracy: {:.3f}. ****\n".format(acc_test))
     else :
         train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, target_features, task_type)
