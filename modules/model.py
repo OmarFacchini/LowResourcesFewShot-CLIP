@@ -37,14 +37,14 @@ def get_vision_target_features(model, loader, dtype_autocast=torch.float16):
     return normalized_vision_features
 
 
-
 class FewShotClip(nn.Module):
     def __init__(self, args, clip_model):
         super().__init__()
         self.clip_model = clip_model
+        self.visual = self.clip_model.visual
         self.encode_text = self.clip_model.encode_text
         self.encode_image = self.clip_model.encode_image
-
+        self.encode_image_attention = self.clip_model.encode_image_attention
 
         # Turn off gradients for CLIP model
         print("Turning off all gradients for CLIP model.")

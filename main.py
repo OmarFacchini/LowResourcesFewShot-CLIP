@@ -11,7 +11,7 @@ from datasets.utils import build_data_loader
 import modules.clip as clip
 from modules.runner import train_model, eval_model, eval_and_get_data
 from modules.utils import *
-
+from failure_case_analysis import plot_topk_images_for_class, plot_topk_images, plot_attention_map_enhance
 from modules.model import FewShotClip, get_text_target_features, get_vision_target_features
 #torch.autograd.set_detect_anomaly(True)
 
@@ -47,6 +47,7 @@ def get_arguments():
     parser.add_argument('--load_ckpt', default=None, help='Modle checkpoint to load')
 
     parser.add_argument('--eval_only', default=False, action='store_true', help='only evaluate the LoRA modules (save_path should not be None)')
+    parser.add_argument('--plot_metrics', default=False, action='store_true', help='save features for visualization / analysis')
     parser.add_argument('--model_stats_to_csv', default=False, action='store_true', help='save features for visualization / analysis')
     # flags to add modules to CLIP
     parser.add_argument('--enable_MetaAdapter', default=False, action='store_true', help='add Meta-Adapter to CLIP model')
@@ -74,7 +75,6 @@ def main():
         task_type = 'image2image'
 
     dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
-
     target_loader = None
 
     if args.dataset == 'imagenet':
@@ -86,7 +86,6 @@ def main():
         if task_type == 'image2image':
             target_loader = build_data_loader(data_source=dataset.target, batch_size=1, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
 
-    
     train_loader = None
     if not args.eval_only:
         train_tranform = transforms.Compose([
@@ -99,12 +98,6 @@ def main():
             train_loader = torch.utils.data.DataLoader(dataset.train_x, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
-
-    inputs, class_id, imgtype = next(iter(train_loader))
-    print(imgtype)
-    print(class_id)
-    exit()
-
 
     # Prepare model
     model = FewShotClip(args, clip_model).cuda()
@@ -120,16 +113,24 @@ def main():
 
     if args.eval_only:
         print("Testing model...")
-        if not args.model_stats_to_csv:
+        if not args.plot_metrics :
             acc_test = eval_model(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
         else :
             acc_test, images, targets, predictions, features, similarities = eval_and_get_data(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
+            if args.plot_metrics :
+                idx = 0
+                plot_attention_map_enhance(dataset.train_x[idx].impath, preprocess, model, "attn")
+
+                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
+                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
+                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
+                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
+                
+
+        if args.model_stats_to_csv:
+            print("Saving model stats to csv...")
             model_out_to_csv(features, targets, predictions, similarities, csv_filename='data/evaluation_results.csv')
-            # plot_confusion_matrix(targets, predictions, dataset.classnames)
-            # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
-            # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
-            # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
-            # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
+        
         print("**** Test accuracy: {:.3f}. ****\n".format(acc_test))
     else :
         train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, target_features, task_type)

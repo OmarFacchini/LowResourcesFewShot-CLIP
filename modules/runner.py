@@ -233,15 +233,10 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             best_acc = acc_val
             best_weights = copy.deepcopy(model.state_dict())
     
-    
     model.load_state_dict(best_weights)
     acc_test = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)  
     print(f"**** Test accuracy: {acc_test:.2f}. ****\n") 
-    # plot_confusion_matrix(targets, predictions, dataset.classnames)
-    # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
-    # plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
-    # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
-    # plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
+
     if args.save_path != None:
         full_path = os.path.join(args.save_path, str(args.filename) + '.pth')
         torch.save({'model_state_dict': best_weights}, full_path)
