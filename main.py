@@ -104,6 +104,7 @@ def main():
     if args.load_ckpt is not None:
         checkpoint = torch.load(args.load_ckpt, weights_only=True)
         model.load_state_dict(checkpoint['model_state_dict'])
+        model = model.float()
     print("MODEL SIZE => ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     # Prepare class features according to modality
@@ -117,15 +118,14 @@ def main():
             acc_test = eval_model(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
         else :
             acc_test, images, targets, predictions, features, similarities = eval_and_get_data(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
+            print("Generating metrics...")
             if args.plot_metrics :
-                idx = 0
+                idx = 3
                 plot_attention_map_enhance(dataset.train_x[idx].impath, preprocess, model, "attn")
-
-                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
-                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
-                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
-                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
-                
+                #plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
+                #plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
+                #plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
+                #plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
 
         if args.model_stats_to_csv:
             print("Saving model stats to csv...")
@@ -133,6 +133,7 @@ def main():
         
         print("**** Test accuracy: {:.3f}. ****\n".format(acc_test))
     else :
+        print("Training model...")
         train_model(args, model, logit_scale, dataset, train_loader, val_loader, test_loader, target_loader, target_features, task_type)
 
 if __name__ == '__main__':

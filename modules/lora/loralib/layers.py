@@ -337,6 +337,35 @@ class Conv3d(nn.Conv3d, LoRALayer):
             return nn.Conv3d.forward(self, x, **kwargs)
 
 
+def scaled_dot_product_attention_with_weights(query, key, value, attn_mask=None, dropout_p=0.0,
+        is_causal=False, scale=None, enable_gqa=False) -> torch.Tensor:
+    L, S = query.size(-2), key.size(-2)
+    scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
+    attn_bias = torch.zeros(1, 1, L, S, dtype=query.dtype).cuda()
+    if is_causal:
+        assert attn_mask is None
+        temp_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+        attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
+        attn_bias.to(query.dtype)
+
+    if attn_mask is not None:
+        if attn_mask.dtype == torch.bool:
+            attn_bias.masked_fill_(attn_mask.logical_not(), float("-inf"))
+        else:
+            attn_bias += attn_mask
+
+    if enable_gqa:
+        key = key.repeat_interleave(query.size(-3)//key.size(-3), -3)
+        value = value.repeat_interleave(query.size(-3)//value.size(-3), -3)
+
+    attn_weight = query @ key.transpose(-2, -1) * scale_factor
+    attn_weight += attn_bias
+    attn_weight = torch.softmax(attn_weight, dim=-1)
+    attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
+
+    return attn_weight @ value, attn_weight[:,0, 1:]
+
+
 class PlainMultiheadAttentionLoRA(nn.Module):
     def __init__(
             self,
@@ -508,13 +537,14 @@ class PlainMultiheadAttentionLoRA(nn.Module):
         k = k.view(bsz, self.num_heads, src_len, self.head_dim)
         v = v.view(bsz, self.num_heads, src_len, self.head_dim)
 
-        attn_output = self.scaled_dot_product_attention(q, k, v, attn_mask, dropout_p, is_causal)
+        attn_output, attn_weights = scaled_dot_product_attention_with_weights(q, k, v, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal)
         attn_output = attn_output.permute(2, 0, 1, 3).contiguous().view(bsz * tgt_len, embed_dim)
         attn_output = self.proj(attn_output)
         attn_output = attn_output.view(tgt_len, bsz, attn_output.size(1))
         if self.batch_first and is_batched:
             return attn_output.transpose(1, 0), None
-        return attn_output, None  
+        
+        return attn_output, attn_weights  
 
     def train(self, mode: bool = True):
         super().train(mode)
@@ -529,7 +559,6 @@ class PlainMultiheadAttentionLoRA(nn.Module):
 
         return self.forward_module(query, key, value, **kwargs) 
         
-
 
 class MergedLinear(nn.Linear, LoRALayer):
     # LoRA implemented in a dense layer
