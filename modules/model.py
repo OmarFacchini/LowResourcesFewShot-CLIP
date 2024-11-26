@@ -25,7 +25,7 @@ def get_vision_target_features(model, loader, dtype_autocast=torch.float16):
     """
     # Data augmentation for the cache model
     features_list = []
-    for i, (images, target, target_f) in enumerate(loader):
+    for i, (images, target, breaking_img1, breaking_img2) in enumerate(loader):
         images = images.cuda()
         with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
             image_features = model.encode_image(images)

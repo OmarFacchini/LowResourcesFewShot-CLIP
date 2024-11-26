@@ -55,7 +55,7 @@ def eval_and_get_data(args, model, logit_scale, loader, target_features, support
             meta_key = support_features.reshape(meta_query.shape[0], -1, meta_query.shape[1]) # Support embedding
 
         # Evaluation loop
-        for i, (images, target, target_f) in enumerate(loader):
+        for i, (images, target, breaking_img1, breaking_img2) in enumerate(loader):
             images, target = images.cuda(), target.cuda()
             with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
                 image_features = model.encode_image(images)
@@ -117,7 +117,7 @@ def eval_model(args, model, logit_scale, loader, target_features, support_img_lo
             meta_key = support_features.reshape(meta_query.shape[0], -1, meta_query.shape[1]) # Support embedding
 
         # Evaluation loop
-        for i, (images, target, target_f) in enumerate(loader):
+        for i, (images, target, breaking_img1, breaking_img2) in enumerate(loader):
             images, target = images.cuda(), target.cuda()
             with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
                 image_features = model.encode_image(images)
@@ -173,7 +173,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
         acc_train = 0
         tot_samples = 0
         loss_epoch = 0.
-        for i, (images, target, target_f) in enumerate(tqdm(train_loader, desc=f'Training')):
+        for i, (images, target, breaking_img1, breaking_img2) in enumerate(tqdm(train_loader, desc=f'Training')):
             # Load data on GPU
             images, target = images.cuda(), target.cuda()
             # Load Label features
