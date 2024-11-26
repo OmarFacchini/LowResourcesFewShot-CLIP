@@ -100,12 +100,6 @@ def main():
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
 
-    inputs, class_id, imgtype = next(iter(train_loader))
-    print(imgtype)
-    print(class_id)
-    exit()
-
-
     # Prepare model
     model = FewShotClip(args, clip_model).cuda()
     if args.load_ckpt is not None:

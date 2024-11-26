@@ -374,13 +374,15 @@ class DatasetWrapper(TorchDataset):
                     img = self._transform_image(self.transform, img)
                     breaking_tensor.append(img)
 
+        if len(breaking_tensor) == 0:
+            breaking_tensor = [-1, -1]
         #breaking_tensor = torch.stack(breaking_tensor)
         output['breaking_tensor'] = breaking_tensor
 
         if self.return_img0:
             output['img0'] = self.to_tensor(img0)
 
-        return output['img'], output['label'], output['breaking_tensor'][0], output['breaking_tensor'][0]
+        return output['img'], output['label'], output['breaking_tensor'][0], output['breaking_tensor'][1]
 
     def _transform_image(self, tfm, img0):
         img_list = []
