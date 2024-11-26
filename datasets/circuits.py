@@ -50,21 +50,12 @@ class Circuits(DatasetBase):
             out = []
             for impath, label, classname in items:
                 # remove .png and keep file name eg: 1
-                original_filename= os.path.splitext(impath)[0] 
+                original_filename = os.path.splitext(impath)[0] 
 
                 # path of original image
                 # path_prefix = dataset/circuit-diagrams/data
                 # impath = dataset/circuit-diagrams/data/1.png
                 impath = os.path.join(path_prefix, impath) 
-
-                # insert the original image
-                item = Datum(
-                    impath=impath,
-                    label=int(label),
-                    classname=classname,
-                    imgtype="original"
-                )
-                out.append(item)
 
                 # concept of label preserving and breaking is applied only to training
                 if train:
@@ -74,31 +65,58 @@ class Circuits(DatasetBase):
                     # dataset/circuit-diagrams/data/label_breaking
                     breaking_dir_path = os.path.join(path_prefix, "label_breaking")
 
-                    # for each original image, take its preserving and its breaking images
-                    for path in [preserving_dir_path, breaking_dir_path]:
+                    for preserving_path in [preserving_dir_path]:
+                        preserving_img_path = os.path.join(preserving_path, original_filename)
+                        if os.path.exists(preserving_img_path):
+                            for path in [breaking_dir_path]:
+                                breaking_paths = []
+                                img_path = os.path.join(path, original_filename)
+                                '''check if folder exists, should always be true as we generate samples from train set
+                                and enter here only if we are training'''
+                                if os.path.exists(img_path):
+                                    # loop on all samples generated for the original image
+                                    # 1.png, 2.png.....
+                                    # get 2 breaking labels paths
+                                    for i, filename in enumerate(os.listdir(img_path)):
+                                        # only want 2 breaking labels per sample
+                                        if i > 1:
+                                            break
+                                        # dataset/circuit-diagrams/data/label_breaking/1.png
+                                        sample_path = os.path.join(img_path, filename)
+                                        breaking_paths.append(sample_path)
 
-                        # select imgtype based on path i am currently in
-                        imgtype = "preserving" if "preserving" in path else "breaking"
+                                    # insert the original image with its breaking paths
+                                    item = Datum(
+                                        impath=impath,
+                                        label=int(label),
+                                        classname=classname,
+                                        imgtype="original",
+                                        breaking_paths = breaking_paths
+                                    )
+                                    out.append(item)
 
-                        # dataset/circuit-diagrams/data/label_*/1
-                        img_path = os.path.join(path, original_filename)
-
-                        '''check if folder exists, should always be true as we generate samples from train set
-                        and enter here only if we are training'''
-                        if os.path.exists(img_path):
-                            # loop on all samples generated for the original image
-                            # 1.png, 2.png.....
-                            for filename in os.listdir(img_path):
-                                # dataset/circuit-diagrams/data/label_*1/1.png
-                                sample_path = os.path.join(img_path, filename)
-                                
-                                item = Datum(
-                                    impath=sample_path,
-                                    label=int(label),
-                                    classname=classname,
-                                    imgtype=imgtype
-                                )
-                                out.append(item)
+                                    for filename in os.listdir(preserving_img_path):
+                                        preserving_sample_path = os.path.join(preserving_img_path, filename)
+                                    
+                                        # insert preserving img with its breaking paths
+                                        item = Datum(
+                                            impath=preserving_sample_path,
+                                            label=int(label),
+                                            classname=classname,
+                                            imgtype="preserving",
+                                            breaking_paths = breaking_paths
+                                        )
+                                        out.append(item)
+                else:
+                    # insert the original image with no breaking things
+                    item = Datum(
+                        impath=impath,
+                        label=int(label),
+                        classname=classname,
+                        imgtype="original",
+                        breaking_paths = []
+                    )
+                    out.append(item)
             return out
         
         print(f'Reading split from {filepath}')

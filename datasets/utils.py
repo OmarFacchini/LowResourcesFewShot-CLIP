@@ -73,7 +73,7 @@ class Datum:
         classname (str): class name.
     """
 
-    def __init__(self, impath='', target_path='', label=-1, classname='', imgtype='original'):
+    def __init__(self, impath='', target_path='', label=-1, classname='', imgtype='original', breaking_paths=[]):
         assert isinstance(impath, str)
         assert isinstance( target_path, str)
         assert isinstance(classname, str)
@@ -84,6 +84,7 @@ class Datum:
         self._label = label
         self._classname = classname
         self._img_type = imgtype
+        self._breaking_paths = breaking_paths
 
 
     @property
@@ -106,10 +107,14 @@ class Datum:
     def img_type(self):
         return self._img_type
     
+    @property
+    def breaking_paths(self):
+        return self._breaking_paths
+    
     
     def __repr__(self):
         return (f"Datum(impath={self.impath}, target_path={self.target_path}, "
-                f"label={self.label}, classname={self.classname}, img_type={self.img_type}")
+                f"label={self.label}, classname={self.classname}, img_type={self.img_type}, breaking_paths={self.breaking_paths}")
 
 
 class DatasetBase:
@@ -336,10 +341,11 @@ class DatasetWrapper(TorchDataset):
             'impath': item.impath # historic map
         }
 
-        output['target_img'] = item.img_type
+        #output['target_img'] = item.img_type
 
         img0 = read_image(item.impath)
 
+        # read and save original image tensor into output['img']
         if self.transform is not None:
             if isinstance(self.transform, (list, tuple)):
                 for i, tfm in enumerate(self.transform):
@@ -352,10 +358,29 @@ class DatasetWrapper(TorchDataset):
                 img = self._transform_image(self.transform, img0)
                 output['img'] = img
 
+        # for all the breaking images we want, loop, read img and create tensor in output['breaking_tensor']
+        breaking_tensor = []
+        for breaking in item.breaking_paths:
+            img = read_image(breaking)
+            if self.transform is not None:
+                if isinstance(self.transform, (list, tuple)):
+                    for i, tfm in enumerate(self.transform):
+                        img = self._transform_image(tfm, img)
+                        keyname = 'img_breaking'
+                        if (i + 1) > 1:
+                            keyname += str(i + 1)
+                        breaking_tensor.append(img)
+                else:
+                    img = self._transform_image(self.transform, img)
+                    breaking_tensor.append(img)
+
+        #breaking_tensor = torch.stack(breaking_tensor)
+        output['breaking_tensor'] = breaking_tensor
+
         if self.return_img0:
             output['img0'] = self.to_tensor(img0)
 
-        return output['img'], output['label'], output['target_img']
+        return output['img'], output['label'], output['breaking_tensor'][0], output['breaking_tensor'][0]
 
     def _transform_image(self, tfm, img0):
         img_list = []
