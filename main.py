@@ -75,8 +75,6 @@ def main():
 
     dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
 
-    plot_attention_map(dataset.train_x[0].impath, preprocess, clip_model, args.dataset)
-
     target_loader = None
 
     if args.dataset == 'imagenet':
