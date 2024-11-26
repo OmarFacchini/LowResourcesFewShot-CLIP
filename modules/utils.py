@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import torch.nn as nn
 import modules.clip as clip
 import csv
+from PIL import Image
+import torchvision.transforms as transforms
 
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
@@ -450,3 +452,30 @@ def plot_improved_predictions(images, targets, predictions, similarities, classn
     # Save figure
     plt.savefig('plot/top_improvements.png', bbox_inches='tight', dpi=300)
     plt.show()
+
+def plot_attention_map(impath, preprocess, clip_model, name):
+    transform_image = transforms.Compose([
+        transforms.Resize(clip_model.visual.input_resolution, interpolation=Image.BICUBIC),
+        transforms.CenterCrop(clip_model.visual.input_resolution),
+        lambda image: image.convert("RGB"),
+    ])
+
+    img = Image.open(impath) # PIL img
+    img_input = preprocess(img).unsqueeze(0)
+
+    with torch.no_grad(): 
+        image_attention = clip_model.encode_image_attention(img_input)
+        #reshaped_attention = image_attention[0].reshape(14, 14)
+
+    #original_img = transform_image(img)
+    #overlayed_img = overlay_transparency(original_img, reshaped_attention)
+
+    fig = plt.figure(figsize=[10, 5], frameon=False)
+    ax = fig.add_subplot(1, 2, 1)
+    ax.axis("off")
+    ax.imshow(transform_image(img))
+    ax = fig.add_subplot(1, 2, 2)
+    ax.axis("off")
+    ax.imshow(image_attention[0].reshape(14, 14))
+    fig.subplots_adjust(hspace=0, wspace=0)
+    fig.savefig(f"{name}_{1}")

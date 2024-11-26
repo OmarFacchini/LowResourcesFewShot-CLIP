@@ -74,6 +74,9 @@ def main():
         task_type = 'image2image'
 
     dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
+
+    plot_attention_map(dataset.train_x[0].impath, preprocess, clip_model, args.dataset)
+
     target_loader = None
 
     if args.dataset == 'imagenet':
@@ -84,6 +87,7 @@ def main():
         test_loader = build_data_loader(data_source=dataset.test, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
         if task_type == 'image2image':
             target_loader = build_data_loader(data_source=dataset.target, batch_size=1, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
+
     
     train_loader = None
     if not args.eval_only:
@@ -97,6 +101,11 @@ def main():
             train_loader = torch.utils.data.DataLoader(dataset.train_x, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
         else:
             train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
+
+    inputs, class_id, imgtype = next(iter(train_loader))
+    print(imgtype)
+    print(class_id)
+    exit()
 
 
     # Prepare model

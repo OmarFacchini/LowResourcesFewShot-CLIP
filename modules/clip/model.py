@@ -182,11 +182,16 @@ class ResidualAttentionBlock(nn.Module):
     def attention(self, x: torch.Tensor):
         self.attn_mask = self.attn_mask.to(dtype=x.dtype, device=x.device) if self.attn_mask is not None else None
         return self.attn(x, x, x, need_weights=False, attn_mask=self.attn_mask)[0]
+    
+    def attention_weight(self, x: torch.Tensor): # ADDED
+        self.attn_mask = self.attn_mask.to(dtype=x.dtype, device=x.device) if self.attn_mask is not None else None
+        return self.attn(x, x, x, need_weights=True, attn_mask=self.attn_mask)[1]
 
-    def forward(self, x: torch.Tensor):
-        att = self.attention(self.ln_1(x))
-        self.attention_mask = att
-        x = x + att
+    def forward(self, x: torch.Tensor, return_attention: bool=False): # MODIFIED
+        if return_attention: # ADDED
+            return self.attention_weight(self.ln_1(x)) # ADDED
+
+        x = x + self.attention(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
         return x
 
@@ -202,6 +207,13 @@ class Transformer(nn.Module):
 
     def forward(self, x: torch.Tensor):
         return self.resblocks(x)
+    
+    # ADDED
+    def forward_attention(self, x: torch.Tensor):
+        for index, layer in enumerate(self.resblocks):
+            if index == len(self.resblocks) - 1:
+                return layer(x, return_attention=True)
+            x = layer(x)
 
 
 class VisionTransformer(nn.Module):
@@ -239,6 +251,19 @@ class VisionTransformer(nn.Module):
             x = x @ self.proj
 
         return x
+    
+    # ADDED
+    def forward_attention(self, x: torch.Tensor):
+        x = self.conv1(x)  # shape = [*, width, grid, grid]
+        x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
+        x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+        x = torch.cat([self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+        x = x + self.positional_embedding.to(x.dtype)
+        x = self.ln_pre(x)
+
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.transformer.forward_attention(x)
+        return x[:, 0, 1:]
 
 
 class CLIP(nn.Module):
@@ -340,6 +365,9 @@ class CLIP(nn.Module):
 
     def encode_image(self, image):
         return self.visual(image.type(self.dtype))
+    
+    def encode_image_attention(self, image):
+        return self.visual.forward_attention(image.type(self.dtype))
 
     def encode_text(self, text):
         x = self.token_embedding(text).type(self.dtype)  # [batch_size, n_ctx, d_model]
