@@ -32,8 +32,8 @@ def get_arguments():
     parser.add_argument('--backbone', default='ViT-B/16', type=str)
     # Training arguments
     parser.add_argument('--lr', default=2e-4, type=float)
-    parser.add_argument('--n_iters', default=3, type=int)
-    parser.add_argument('--batch_size', default=32, type=int)
+    parser.add_argument('--n_iters', default=2, type=int)
+    parser.add_argument('--batch_size', default=16, type=int)
     # LoRA arguments
     parser.add_argument('--position', type=str, default='all', choices=['bottom', 'mid', 'up', 'half-up', 'half-bottom', 'all', 'top3'], help='where to put the LoRA modules')
     parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='both')
@@ -41,7 +41,8 @@ def get_arguments():
     parser.add_argument('--r', default=2, type=int, help='the rank of the low-rank matrices')
     parser.add_argument('--alpha', default=1, type=int, help='scaling (see LoRA paper)')
     parser.add_argument('--dropout_rate', default=0.25, type=float, help='dropout rate applied before the LoRA module')
-    parser.add_argument('--args.bank_size', default=50, type=int, help='size of the feature bank for Breaking Loss')
+    parser.add_argument('--bank_size', default=32, type=int, help='size of the feature bank for Breaking Loss')
+    parser.add_argument('--lambda_breaking', default=0.1, type=float, help='size of the feature bank for Breaking Loss')
 
     parser.add_argument('--save_path', default=None, help='path to save the lora modules after training, not saved if None')
     parser.add_argument('--filename', default='few_shot_clip', help='file name to save the lora weights (.pt extension will be added)')
@@ -55,8 +56,6 @@ def get_arguments():
     parser.add_argument('--enable_lora', default=False, action='store_true', help='add LoRA adapter to CLIP model')
     parser.add_argument('--enable_BitFit', default=False, action='store_true', help='add BitFit adapter to CLIP model')
     parser.add_argument('--enable_breaking_loss', default=False, action='store_true', help='Train model with Preserving + Breaking contrastive loss')
-    
-
     
     args = parser.parse_args()
 
@@ -81,14 +80,10 @@ def main():
     dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
     target_loader = None
 
-    if args.dataset == 'imagenet':
-        val_loader = torch.utils.data.DataLoader(dataset.val, batch_size=256, num_workers=8, shuffle=False, pin_memory=True)
-        test_loader = torch.utils.data.DataLoader(dataset.test, batch_size=256, num_workers=8, shuffle=False, pin_memory=True)
-    else:
-        val_loader = build_data_loader(data_source=dataset.val, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
-        test_loader = build_data_loader(data_source=dataset.test, batch_size=256, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
-        if task_type == 'image2image':
-            target_loader = build_data_loader(data_source=dataset.target, batch_size=1, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
+    val_loader = build_data_loader(data_source=dataset.val, batch_size=args.batch_size, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
+    test_loader = build_data_loader(data_source=dataset.test, batch_size=args.batch_size, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
+    if task_type == 'image2image':
+        target_loader = build_data_loader(data_source=dataset.target, batch_size=args.batch_size, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
 
     train_loader = None
     if not args.eval_only:
@@ -98,10 +93,7 @@ def main():
             transforms.ToTensor(),
             transforms.Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711))
         ])
-        if args.dataset == 'imagenet':
-            train_loader = torch.utils.data.DataLoader(dataset.train_x, batch_size=args.batch_size, num_workers=8, shuffle=True, pin_memory=True)
-        else:
-            train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
+        train_loader = build_data_loader(data_source=dataset.train_x, batch_size=args.batch_size, tfm=train_tranform, is_train=True, shuffle=True, num_workers=8)
 
     # Prepare model
     model = FewShotClip(args, clip_model).cuda()

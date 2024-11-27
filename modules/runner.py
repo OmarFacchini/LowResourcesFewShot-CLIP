@@ -21,28 +21,28 @@ from .meta_adapter.meta_adapter import MetaAdapter
 from .clip import *
 from .model import get_text_target_features, get_vision_target_features
 
-def preserving_breaking_loss(model, preserving_loss, breaking_img1, breaking_img2, feature_bank):
+def preserving_breaking_loss(args, model, logit_scale, preserving_loss, breaking_img1, breaking_img2, feature_bank, dtype_autocast=torch.float16):
     
     breaking_img1, breaking_img2 = breaking_img1.cuda(), breaking_img2.cuda()
 
     with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
         breaking_features_1 = model.encode_image(breaking_img1)
-        breaking_features_2 = model(breaking_img2)
+        breaking_features_2 = model.encode_image(breaking_img2)
     breaking_features_1 = breaking_features_1/breaking_features_1.norm(dim=-1, keepdim=True)
     breaking_features_2 = breaking_features_2/breaking_features_2.norm(dim=-1, keepdim=True)
 
     if len(feature_bank) > 0:
         compared_features = torch.cat(feature_bank, dim=0).cuda()
         compared_features = torch.cat((breaking_features_1, compared_features), dim=0)
-        contrastive_logits = args.factor * breaking_features_2 @ compared_features.t()
+        contrastive_logits = logit_scale * breaking_features_2 @ compared_features.t()
     else:
-        contrastive_logits = args.factor * breaking_features_2 @ breaking_features_1.t()
-    contrastive_labels = torch.arange(breaking_img_1.size()[0], device='cuda', dtype=torch.long)
+        contrastive_logits = logit_scale * breaking_features_2 @ breaking_features_1.t()
+    contrastive_labels = torch.arange(breaking_img1.size()[0], device='cuda', dtype=torch.long)
     contrastive_loss = F.cross_entropy(contrastive_logits, contrastive_labels)
     
-    loss = preserving_loss + args.lambda * contrastive_loss
+    loss = preserving_loss + args.lambda_breaking * contrastive_loss
 
-    return loss
+    return loss, breaking_features_1
 
 
 
@@ -223,7 +223,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             
             loss = F.cross_entropy(cosine_similarity, target)
             if args.enable_breaking_loss and args.dataset == 'circuits' :
-                loss = preserving_breaking_loss(model, loss, breaking_img1, breaking_img2, feature_bank)
+                loss, aug_features = preserving_breaking_loss(args, model, logit_scale, loss, breaking_img1, breaking_img2, feature_bank)
 
             acc_train += cls_acc(cosine_similarity, target) * target.shape[0]
             loss_epoch += loss.item() * target.shape[0]
