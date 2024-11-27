@@ -4,6 +4,7 @@ from .utils import Datum, DatasetBase, read_json, write_json, build_data_loader
 from .oxford_pets import OxfordPets
 
 import torchvision.transforms as transforms
+import random
 
 
 circuit_classes = ["others", "audio amplifier/amplifier", "converter/power supply/charger/inverter", "mosquito repellent", "infrared sensor",
@@ -77,10 +78,7 @@ class Circuits(DatasetBase):
                                     # loop on all samples generated for the original image
                                     # 1.png, 2.png.....
                                     # get 2 breaking labels paths
-                                    for i, filename in enumerate(os.listdir(img_path)):
-                                        # only want 2 breaking labels per sample
-                                        if i > 1:
-                                            break
+                                    for filename in os.listdir(img_path):
                                         # dataset/circuit-diagrams/data/label_breaking/1.png
                                         sample_path = os.path.join(img_path, filename)
                                         breaking_paths.append(sample_path)
@@ -91,7 +89,7 @@ class Circuits(DatasetBase):
                                         label=int(label),
                                         classname=classname,
                                         imgtype="original",
-                                        breaking_paths = breaking_paths
+                                        breaking_paths = random.sample(breaking_paths,2) #select 2 samples
                                     )
                                     out.append(item)
 
@@ -104,7 +102,7 @@ class Circuits(DatasetBase):
                                             label=int(label),
                                             classname=classname,
                                             imgtype="preserving",
-                                            breaking_paths = breaking_paths
+                                            breaking_paths = random.sample(breaking_paths,2) #select 2 samples
                                         )
                                         out.append(item)
                 else:
