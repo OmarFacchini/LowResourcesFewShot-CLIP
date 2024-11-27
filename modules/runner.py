@@ -21,6 +21,30 @@ from .meta_adapter.meta_adapter import MetaAdapter
 from .clip import *
 from .model import get_text_target_features, get_vision_target_features
 
+def preserving_breaking_loss(model, preserving_loss, breaking_img1, breaking_img2, feature_bank):
+    
+    breaking_img1, breaking_img2 = breaking_img1.cuda(), breaking_img2.cuda()
+
+    with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
+        breaking_features_1 = model.encode_image(breaking_img1)
+        breaking_features_2 = model(breaking_img2)
+    breaking_features_1 = breaking_features_1/breaking_features_1.norm(dim=-1, keepdim=True)
+    breaking_features_2 = breaking_features_2/breaking_features_2.norm(dim=-1, keepdim=True)
+
+    if len(feature_bank) > 0:
+        compared_features = torch.cat(feature_bank, dim=0).cuda()
+        compared_features = torch.cat((breaking_features_1, compared_features), dim=0)
+        contrastive_logits = args.factor * breaking_features_2 @ compared_features.t()
+    else:
+        contrastive_logits = args.factor * breaking_features_2 @ breaking_features_1.t()
+    contrastive_labels = torch.arange(breaking_img_1.size()[0], device='cuda', dtype=torch.long)
+    contrastive_loss = F.cross_entropy(contrastive_logits, contrastive_labels)
+    
+    loss = preserving_loss + args.lambda * contrastive_loss
+
+    return loss
+
+
 
 def eval_and_get_data(args, model, logit_scale, loader, target_features, support_img_loader=None, meta_query=None, meta_key=None):
     """
@@ -167,6 +191,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     count_iters = 0
     best_acc = 0
     best_weights = {}
+    feature_bank = []
 
     while count_iters < total_iters:
         model.train()
@@ -197,6 +222,9 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
                 cosine_similarity = logit_scale * image_features @ target_features.T
             
             loss = F.cross_entropy(cosine_similarity, target)
+            if args.enable_breaking_loss and args.dataset == 'circuits' :
+                loss = preserving_breaking_loss(model, loss, breaking_img1, breaking_img2, feature_bank)
+
             acc_train += cls_acc(cosine_similarity, target) * target.shape[0]
             loss_epoch += loss.item() * target.shape[0]
             tot_samples += target.shape[0]
@@ -204,7 +232,6 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             optimizer.zero_grad()
             scaler.scale(loss).backward(retain_graph=True)
             scaler.step(optimizer)
-
             scaler.update()
             scheduler.step()
             
@@ -213,6 +240,11 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
                 with torch.no_grad():
                     for tar, feat in zip(target, image_features):
                         meta_key[tar] = torch.cat([feat[None, :], meta_key[tar][:meta_key.shape[1] - 1]], dim=0)
+
+            if args.enable_breaking_loss and args.dataset == 'circuits' :
+                feature_bank.append(aug_features.detach())
+                if len(feature_bank) > args.bank_size:
+                    feature_bank = feature_bank[-args.bank_size:]
 
             count_iters += 1
             if count_iters == total_iters:

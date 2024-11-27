@@ -41,7 +41,8 @@ def get_arguments():
     parser.add_argument('--r', default=2, type=int, help='the rank of the low-rank matrices')
     parser.add_argument('--alpha', default=1, type=int, help='scaling (see LoRA paper)')
     parser.add_argument('--dropout_rate', default=0.25, type=float, help='dropout rate applied before the LoRA module')
-    
+    parser.add_argument('--args.bank_size', default=50, type=int, help='size of the feature bank for Breaking Loss')
+
     parser.add_argument('--save_path', default=None, help='path to save the lora modules after training, not saved if None')
     parser.add_argument('--filename', default='few_shot_clip', help='file name to save the lora weights (.pt extension will be added)')
     parser.add_argument('--load_ckpt', default=None, help='Modle checkpoint to load')
@@ -53,6 +54,9 @@ def get_arguments():
     parser.add_argument('--enable_MetaAdapter', default=False, action='store_true', help='add Meta-Adapter to CLIP model')
     parser.add_argument('--enable_lora', default=False, action='store_true', help='add LoRA adapter to CLIP model')
     parser.add_argument('--enable_BitFit', default=False, action='store_true', help='add BitFit adapter to CLIP model')
+    parser.add_argument('--enable_breaking_loss', default=False, action='store_true', help='Train model with Preserving + Breaking contrastive loss')
+    
+
     
     args = parser.parse_args()
 
@@ -120,8 +124,8 @@ def main():
             acc_test, images, targets, predictions, features, similarities = eval_and_get_data(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
             print("Generating metrics...")
             if args.plot_metrics :
-                idx = 3
-                plot_attention_map_enhance(dataset.train_x[idx].impath, preprocess, model, "attn")
+                idx = 1
+                plot_attention_map_enhance(dataset.train_x[idx].impath, preprocess, model, f"CLIP_{idx}")
                 #plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
                 #plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
                 #plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
