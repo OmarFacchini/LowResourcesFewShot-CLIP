@@ -280,7 +280,10 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
 
     if args.save_path != None:
         full_path = os.path.join(args.save_path, str(args.filename) + '.pth')
-        torch.save({'model_state_dict': best_model_state_dict, 'meta_query' : meta_query.cpu(), 'meta_key' : meta_key.cpu()}, full_path)
+        if args.enable_MetaAdapter :
+            torch.save({'model_state_dict': best_model_state_dict, 'meta_query' : meta_query.cpu(), 'meta_key' : meta_key.cpu()}, full_path)    
+        else :
+            torch.save({'model_state_dict': best_model_state_dict}, full_path)
         print("Model saved => ", full_path)
         
     return
