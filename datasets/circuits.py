@@ -39,8 +39,8 @@ class Circuits(DatasetBase):
         train, val, test = self.read_split(self.split_path, self.image_dir)
 
         n_shots_val = min(num_shots, 4)
-        #val = self.generate_fewshot_dataset(val, num_shots=n_shots_val)
-        #train = self.generate_fewshot_dataset(train, num_shots=num_shots)
+        val = self.generate_fewshot_dataset(val, num_shots=n_shots_val)
+        train = self.generate_fewshot_dataset(train, num_shots=num_shots)
 
         super().__init__(train_x=train, val=val, test=test)
 
@@ -87,7 +87,7 @@ class Circuits(DatasetBase):
                                     item = Datum(
                                         impath=impath,
                                         label=int(label),
-                                        classname=classname,
+                                        classname=label_map[int(label)],
                                         imgtype="original",
                                         breaking_paths = random.sample(breaking_paths,2) #select 2 samples
                                     )
@@ -100,17 +100,18 @@ class Circuits(DatasetBase):
                                         item = Datum(
                                             impath=preserving_sample_path,
                                             label=int(label),
-                                            classname=classname,
+                                            classname=label_map[int(label)],
                                             imgtype="preserving",
                                             breaking_paths = random.sample(breaking_paths,2) #select 2 samples
                                         )
                                         out.append(item)
                 else:
                     # insert the original image with no breaking things
+                    
                     item = Datum(
                         impath=impath,
                         label=int(label),
-                        classname=classname,
+                        classname=label_map[int(label)],
                         imgtype="original",
                         breaking_paths = []
                     )

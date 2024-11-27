@@ -192,7 +192,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     best_weights = {}
     feature_bank = []
     best_meta_query , best_meta_key = None, None
-
+    
     while count_iters < total_iters:
         model.train()
         acc_train = 0
@@ -262,19 +262,25 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
         
         # Save best model (maximizing validation accuracy) ((!!! THAT'S PRETTY WRONG IN FEW-SHOT CONTEXT !!!))
         if acc_val > best_acc:
+            print("Saving model at iteration ", count_iters)
+            print("Best accuracy so far: ", acc_val)
             best_acc = acc_val
             best_model_state_dict = copy.deepcopy(model.state_dict())
             # in the case of Meta-Adapter, save the best meta_query and meta_key found so far
             if args.enable_MetaAdapter :
                 best_meta_query = copy.deepcopy(meta_query).cpu()
                 best_meta_key = copy.deepcopy(meta_key).cpu()
-    
+        
     # Load back best model
+    model.eval()
     model.load_state_dict(best_model_state_dict)
+    # Load back q/k for Meta-Adapter if needed
     if args.enable_MetaAdapter :
         meta_query = best_meta_query.cuda()
         meta_key = best_meta_key.cuda()
     # Test model
+    with torch.no_grad():
+        target_features = get_text_target_features(model, dataset) if task_type == 'image2text' else get_vision_target_features(model, target_loader)
     acc_test = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)  
     print(f"**** Test accuracy: {acc_test:.2f}. ****\n") 
 
