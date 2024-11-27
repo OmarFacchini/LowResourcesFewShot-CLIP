@@ -45,7 +45,6 @@ def preserving_breaking_loss(args, model, logit_scale, preserving_loss, breaking
     return loss, breaking_features_1
 
 
-
 def eval_and_get_data(args, model, logit_scale, loader, target_features, support_img_loader=None, meta_query=None, meta_key=None):
     """
     Runs evaluation of FewShotClip model on the given loader.
@@ -192,6 +191,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     best_acc = -1
     best_weights = {}
     feature_bank = []
+    best_meta_query , best_meta_key = None, None
 
     while count_iters < total_iters:
         model.train()
@@ -257,21 +257,30 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             print(f"LR: {current_lr:.6f}, Acc: {acc_train:.4f}, Loss: {loss_epoch:.4f}")
 
         model.eval()
-        acc_val = eval_model(args, model, logit_scale, val_loader, target_features, meta_query=meta_query, meta_key=meta_key)
+        acc_val = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)
         print(f"**** Validation accuracy: {acc_val:.2f}. ****\n")
         
         # Save best model (maximizing validation accuracy) ((!!! THAT'S PRETTY WRONG IN FEW-SHOT CONTEXT !!!))
         if acc_val > best_acc:
             best_acc = acc_val
             best_model_state_dict = copy.deepcopy(model.state_dict())
+            # in the case of Meta-Adapter, save the best meta_query and meta_key found so far
+            if args.enable_MetaAdapter :
+                best_meta_query = copy.deepcopy(meta_query).cpu()
+                best_meta_key = copy.deepcopy(meta_key).cpu()
     
+    # Load back best model
     model.load_state_dict(best_model_state_dict)
+    if args.enable_MetaAdapter :
+        meta_query = best_meta_query.cuda()
+        meta_key = best_meta_key.cuda()
+    # Test model
     acc_test = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)  
     print(f"**** Test accuracy: {acc_test:.2f}. ****\n") 
 
     if args.save_path != None:
         full_path = os.path.join(args.save_path, str(args.filename) + '.pth')
-        torch.save({'model_state_dict': best_weights}, full_path)
+        torch.save({'model_state_dict': best_model_state_dict, 'meta_query' : meta_query.cpu(), 'meta_key' : meta_key.cpu()}, full_path)
         print("Model saved => ", full_path)
         
     return

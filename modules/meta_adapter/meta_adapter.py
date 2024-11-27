@@ -18,17 +18,18 @@ def get_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', dest='config', help='settings of Meta-Adapter in yaml format')
     args = parser.parse_args()
-
     return args
 
-
 class MetaAdapter(nn.Module):
-    def __init__(self, dim=1024, num_heads=1):
+    def __init__(self, dim=1024, num_heads=1, dropout_prob=0.0):
         super().__init__()
         self.dim = dim
         self.num_heads = num_heads
         self.q_proj = nn.Linear(dim, dim, bias=False)
         self.k_proj = nn.Linear(dim, dim, bias=False)
+        # ADDED dropout to projection layers
+        self.q_proj_dropout = nn.Dropout(p=dropout_prob)
+        self.k_proj_dropout = nn.Dropout(p=dropout_prob)
         self.alpha_proj = nn.Linear(dim, 1, bias=True)
         self._reset_parameters()
 
@@ -47,6 +48,9 @@ class MetaAdapter(nn.Module):
         value = torch.cat([query, value], dim=1)
         query = self.q_proj(query).reshape(B, self.num_heads, C)
         key = self.k_proj(key)
+        # ADDED dropout to projection layers
+        query = self.q_proj_dropout(query)
+        key = self.k_proj_dropout(key)
 
         query = query.reshape(B, self.num_heads, 1, -1).permute(0, 2, 1, 3)
         key = key.reshape(B, K + 1, 1, -1).permute(0, 2, 1, 3)

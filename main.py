@@ -32,7 +32,7 @@ def get_arguments():
     parser.add_argument('--backbone', default='ViT-B/16', type=str)
     # Training arguments
     parser.add_argument('--lr', default=2e-4, type=float)
-    parser.add_argument('--n_iters', default=2, type=int)
+    parser.add_argument('--n_iters', default=8, type=int)
     parser.add_argument('--batch_size', default=24, type=int)
     # LoRA arguments
     parser.add_argument('--position', type=str, default='all', choices=['bottom', 'mid', 'up', 'half-up', 'half-bottom', 'all', 'top3'], help='where to put the LoRA modules')
@@ -40,7 +40,8 @@ def get_arguments():
     parser.add_argument('--params', metavar='N', type=str, nargs='+', default=['q', 'k', 'v'], help='list of attention matrices where putting a LoRA') 
     parser.add_argument('--r', default=2, type=int, help='the rank of the low-rank matrices')
     parser.add_argument('--alpha', default=1, type=int, help='scaling (see LoRA paper)')
-    parser.add_argument('--dropout_rate', default=0.25, type=float, help='dropout rate applied before the LoRA module')
+    parser.add_argument('--dropout_rate_LoRA', default=0.25, type=float, help='dropout rate applied before the LoRA module')
+    parser.add_argument('--dropout_rate_MetaAdapter', default=0.5, type=float, help='dropout rate applied before the MetaAdapter module')
     parser.add_argument('--bank_size', default=100, type=int, help='size of the feature bank for Breaking Loss')
     parser.add_argument('--lambda_breaking', default=0.1, type=float, help='size of the feature bank for Breaking Loss')
 
@@ -97,10 +98,16 @@ def main():
 
     # Prepare model
     model = FewShotClip(args, clip_model).cuda()
+    meta_query = None
+    meta_key = None
     if args.load_ckpt is not None:
         checkpoint = torch.load(args.load_ckpt, weights_only=True)
         model.load_state_dict(checkpoint['model_state_dict'])
         model = model.float()
+        if args.enable_MetaAdapter :
+            meta_query = checkpoint['meta_query'].cuda()
+            meta_key = checkpoint['meta_key'].cuda()
+
     print("MODEL SIZE => ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     # Prepare class features according to modality
@@ -111,9 +118,9 @@ def main():
     if args.eval_only:
         print("Testing model...")
         if not args.plot_metrics :
-            acc_test = eval_model(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
+            acc_test = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key, support_img_loader=val_loader)
         else :
-            acc_test, images, targets, predictions, features, similarities = eval_and_get_data(args, model, logit_scale, test_loader, target_features, support_img_loader=val_loader)
+            acc_test, images, targets, predictions, features, similarities = eval_and_get_data(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key, support_img_loader=val_loader)
             print("Generating metrics...")
             if args.plot_metrics :
                 idx = 1

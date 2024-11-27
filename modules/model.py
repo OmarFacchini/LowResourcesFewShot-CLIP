@@ -73,7 +73,7 @@ class FewShotClip(nn.Module):
 
         # Load meta-adapter
         if args.enable_MetaAdapter:
-            self.meta_adapter = MetaAdapter(dim=512).to(self.clip_model.dtype)
+            self.meta_adapter = MetaAdapter(dim=512, dropout_prob=args.dropout_rate_MetaAdapter).to(self.clip_model.dtype)
             print("Adding Meta-Adapter to CLIP model.")
 
         # Cast all parameters to float
