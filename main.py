@@ -33,7 +33,7 @@ def get_arguments():
     # Training arguments
     parser.add_argument('--lr', default=2e-4, type=float)
     parser.add_argument('--n_iters', default=2, type=int)
-    parser.add_argument('--batch_size', default=16, type=int)
+    parser.add_argument('--batch_size', default=24, type=int)
     # LoRA arguments
     parser.add_argument('--position', type=str, default='all', choices=['bottom', 'mid', 'up', 'half-up', 'half-bottom', 'all', 'top3'], help='where to put the LoRA modules')
     parser.add_argument('--encoder', type=str, choices=['text', 'vision', 'both'], default='both')
@@ -41,7 +41,7 @@ def get_arguments():
     parser.add_argument('--r', default=2, type=int, help='the rank of the low-rank matrices')
     parser.add_argument('--alpha', default=1, type=int, help='scaling (see LoRA paper)')
     parser.add_argument('--dropout_rate', default=0.25, type=float, help='dropout rate applied before the LoRA module')
-    parser.add_argument('--bank_size', default=32, type=int, help='size of the feature bank for Breaking Loss')
+    parser.add_argument('--bank_size', default=100, type=int, help='size of the feature bank for Breaking Loss')
     parser.add_argument('--lambda_breaking', default=0.1, type=float, help='size of the feature bank for Breaking Loss')
 
     parser.add_argument('--save_path', default=None, help='path to save the lora modules after training, not saved if None')

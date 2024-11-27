@@ -189,7 +189,7 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     # training model
     scaler = torch.cuda.amp.GradScaler()
     count_iters = 0
-    best_acc = 0
+    best_acc = -1
     best_weights = {}
     feature_bank = []
 
@@ -263,9 +263,9 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
         # Save best model (maximizing validation accuracy) ((!!! THAT'S PRETTY WRONG IN FEW-SHOT CONTEXT !!!))
         if acc_val > best_acc:
             best_acc = acc_val
-            best_weights = copy.deepcopy(model.state_dict())
+            best_model_state_dict = copy.deepcopy(model.state_dict())
     
-    model.load_state_dict(best_weights)
+    model.load_state_dict(best_model_state_dict)
     acc_test = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)  
     print(f"**** Test accuracy: {acc_test:.2f}. ****\n") 
 
