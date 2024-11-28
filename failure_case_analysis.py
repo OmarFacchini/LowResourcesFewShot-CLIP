@@ -407,7 +407,7 @@ def plot_attention_map(impath, preprocess, clip_model, name):
     fig.savefig(f"{name}_{1}")
 
 
-def plot_attention_map_enhance(impath, preprocess, model, name):
+def plot_attention_map_enhance(impath, preprocess, model, name, plot=True):
     # Transformation to match CLIP model's input requirements
     transform_image = transforms.Compose([
         transforms.Resize(model.visual.input_resolution, interpolation=Image.BICUBIC),
@@ -430,39 +430,40 @@ def plot_attention_map_enhance(impath, preprocess, model, name):
     # Create a heatmap with a threshold to highlight most salient regions
     threshold = np.percentile(attention_map, 50)  # Adjust this percentile as needed
     salient_mask = attention_map >= threshold
-
+    
+    if plot:
     # Create figure
-    fig = plt.figure(figsize=[10, 5])
-    ax = fig.add_subplot(1, 2, 1)
-    
-    # Original image
-    original_img = transform_image(img)
-    ax.imshow(original_img)
-    ax.set_title('Original Image')
-    ax.axis('off')
-    
-    ax = fig.add_subplot(1, 2, 2)
-    ax.set_title('Attention Map Overlay')
-    ax.imshow(original_img)
+        fig = plt.figure(figsize=[10, 5])
+        ax = fig.add_subplot(1, 2, 1)
+        
+        # Original image
+        original_img = transform_image(img)
+        ax.imshow(original_img)
+        ax.set_title('Original Image')
+        ax.axis('off')
+        
+        ax = fig.add_subplot(1, 2, 2)
+        ax.set_title('Attention Map Overlay')
+        ax.imshow(original_img)
 
-    # Overlay salient attention map
-    cmap = plt.cm.get_cmap('jet')  # You can change 'jet' to other colormaps like 'viridis', 'plasma', etc.
-    salient_heatmap = np.zeros_like(attention_map)
-    salient_heatmap[salient_mask] = attention_map[salient_mask]
-    
-    # Resize attention map to match image dimensions
-    
-    salient_heatmap_resized = resize(salient_heatmap, (original_img.height, original_img.width), 
-                                     order=3, mode='constant')
-    
-    # Color the most salient regions
-    ax.imshow(cmap(salient_heatmap_resized), alpha=0.3, cmap=cmap)
-    
-    ax.axis('off')
-    plt.tight_layout()
-    plt.savefig(f"{name}_attention.png", bbox_inches='tight', pad_inches=0)
-    plt.close()
-
+        # Overlay salient attention map
+        cmap = plt.cm.get_cmap('jet')  # You can change 'jet' to other colormaps like 'viridis', 'plasma', etc.
+        salient_heatmap = np.zeros_like(attention_map)
+        salient_heatmap[salient_mask] = attention_map[salient_mask]
+        
+        # Resize attention map to match image dimensions
+        
+        salient_heatmap_resized = resize(salient_heatmap, (original_img.height, original_img.width), 
+                                        order=3, mode='constant')
+        
+        # Color the most salient regions
+        ax.imshow(cmap(salient_heatmap_resized), alpha=0.3, cmap=cmap)
+        
+        ax.axis('off')
+        plt.tight_layout()
+        plt.savefig(f"{name}_attention.png", bbox_inches='tight', pad_inches=0)
+        plt.close()
+    return attention_map, salient_mask
 
 if __name__ == "__main__":
     # Load data

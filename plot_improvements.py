@@ -10,29 +10,32 @@ import modules.clip as clip
 from modules.runner import train_model, eval_model, eval_and_get_data
 from modules.utils import *
 from modules.model import FewShotClip, get_text_target_features, get_vision_target_features
+from failure_case_analysis import plot_topk_images_for_class, plot_topk_images, plot_attention_map_enhance
 # plot modules
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-#TODO: add plotting of attention maps
 
-
-def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions_2, similarities_1, similarities_2, classnames, k=3):
+def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions_2, similarities_1, similarities_2, classnames, dataset, model_1, model_2, preprocess, k=3):
     """
     Plot the top-k images that were misclassified in the first model and correctly classified in the second model.
     
     Args:
         images_1 (np.ndarray): Array of images from the first model (N, C, H, W)
-        targets_1 (np.ndarray): Array of true labels for the first model
+        targets_1 (np.ndarray): Array of true labels for the first model 
         targets_2 (np.ndarray): Array of true labels for the second model
         predictions_1 (np.ndarray): Array of predicted labels for the first model
         predictions_2 (np.ndarray): Array of predicted labels for the second model
-        similarities_1 (np.ndarray): Array of cosine similarities for the first model
-        similarities_2 (np.ndarray): Array of cosine similarities for the second model
+        similarities_1 (np.ndarray): Array of similarity values for the first model
+        similarities_2 (np.ndarray): Array of similarity values for the second model
         classnames (list): List of class names
-        k (int): Number of top images to consider
+        dataset (Dataset): Dataset object
+        model_1 (FewShotClip): Model 1 => model with lower accuracy (baseline)
+        model_2 (FewShotClip): Model 2 => model with higher accuracy (improved)
+        preprocess (function): Preprocessing function
+        k (int): Number of top-k images to plot
     """
-    
+
     # Identify indices of misclassified in model 1 and correctly classified in model 2
     improvement_indices = np.where((predictions_1 != targets_1) & (predictions_2 == targets_2))[0]
     
@@ -49,7 +52,7 @@ def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions
     improvement_deltas = delta_similarities[improvement_indices] # get deltas for the improvement indices
 
     # Sort the indices based on the improvement so larger deltas are first
-    sorted_indices = improvement_indices[np.argsort(-improvement_deltas)]
+    sorted_indices = improvement_indices[-np.argsort(improvement_deltas)]
     # Select top-k improvement indices
     top_indices = sorted_indices[:k]
 
@@ -60,38 +63,73 @@ def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions
     images_display = np.transpose(images_1, (0, 2, 3, 1))
     images_display = (images_display - images_display.min()) / (images_display.max() - images_display.min())
     
-    # Plot the top-k images using GridSpec
-    fig = plt.figure(figsize=(15, 7))  # Increase the height for title space
-    gs = GridSpec(2, len(top_indices), height_ratios=[0.1, 1])  # 1 row for title, 1 row for images
+    # Prepare plot
+    num_rows = len(top_indices)
+    fig = plt.figure(figsize=(12, 5 * num_rows))  # Adjust figure size dynamically
+    gs = GridSpec(num_rows, 4, height_ratios=[1] * num_rows)
 
-    # Add space for the title in the top row
-    title_ax = fig.add_subplot(gs[0, :])
-    title_ax.axis('off')  # Hide axis for title subplot
-    title_ax.text(0.5, 0.5, "Top-k Improvements", fontsize=16, ha='center', va='center')
+    cmap = plt.colormaps["jet"]
 
-    # Loop over each image and plot in the bottom row
+    # Loop over each image and plot
     for i, idx in enumerate(top_indices):
         true_label = classnames[targets_1[idx]]
         pred_label_1 = classnames[predictions_1[idx]]
         pred_label_2 = classnames[predictions_2[idx]]
         delta = improvement_deltas[i]
-        print(delta)
+
+        # Get attention maps for both models (call plot_attention_map_enhance with plot=False to get the attention maps and not plot them) 
+        attention_map_1, salient_mask_1 = plot_attention_map_enhance(dataset[idx].impath, preprocess, model_1, idx, False)
+        attention_map_2, salient_mask_2 = plot_attention_map_enhance(dataset[idx].impath, preprocess, model_2, idx, False)
+        attention_diff = attention_map_2 - attention_map_1
+
+        h, w, _ = images_display[idx].shape # for resizing attention maps
+
+        # Plot the original image
+        ax_img = fig.add_subplot(gs[i, 0])
+        ax_img.imshow(images_display[idx])
+        ax_img.axis('off')
+        ax_img.set_title(f"Original Image\nTrue: {true_label}\nDelta: {delta:.2f}")
         
-        ax = fig.add_subplot(gs[1, i])
-        ax.imshow(images_display[idx])
-        ax.axis('off')
-        ax.set_title(f"True: {true_label}\nPred1: {pred_label_1}\nPred2: {pred_label_2}\nDelta: {delta:.2f}")
+        # Plot the attention map 1
+        salient_heatmap = np.zeros_like(attention_map_1)
+        salient_heatmap[salient_mask_1] = attention_map_1[salient_mask_1]
+        salient_heatmap_resized = resize(salient_heatmap, (h, w), 
+                                        order=3, mode='constant')
+        ax_attn = fig.add_subplot(gs[i, 1])
+        ax_attn.imshow(images_display[idx])
+        ax_attn.imshow(cmap(salient_heatmap_resized), alpha=0.3, cmap=cmap)
+        #ax_attn.imshow(attention_map_1)
+        ax_attn.axis('off')
+        ax_attn.set_title(f"Attention Map Before\nPred1: {pred_label_1}")
+        
+        # Plot the attention map 2 
+        salient_heatmap = np.zeros_like(attention_map_2)
+        salient_heatmap[salient_mask_2] = attention_map_2[salient_mask_2]
+        salient_heatmap_resized = resize(salient_heatmap, (h, w), 
+                                        order=3, mode='constant')
+        ax_attn = fig.add_subplot(gs[i, 2])
+        ax_attn.imshow(images_display[idx])
+        ax_attn.imshow(cmap(salient_heatmap_resized), alpha=0.3, cmap=cmap)
+        #ax_attn.imshow(attention_map_2)
+        ax_attn.axis('off')
+        ax_attn.set_title(f"Attention Map After\nPred2: {pred_label_2}")
+
+        # Plot the difference in attention maps
+        diff_resized = resize(attention_diff, (h, w), order=3, mode='constant')
+        ax_diff = fig.add_subplot(gs[i, 3])
+        ax_diff.imshow(images_display[idx])
+        ax_diff.imshow(cmap(diff_resized), alpha=0.3)
+        ax_diff.axis('off')
+        ax_diff.set_title("Difference in\nAttention Maps")
 
     plt.tight_layout()
-    plt.savefig("improvements.png")
+    plt.savefig("improvements.png", dpi=300)
     plt.show()
-
-    return top_indices
 
 
 def main():
     # General settings
-    args = SimpleNamespace(backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32)
+    args = SimpleNamespace(backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32) # edit this as needed
     # Model 1
     args_1 = SimpleNamespace(
         enable_BitFit=False, enable_lora=True, enable_MetaAdapter=False, enable_breaking_loss=False, eval_only=True, # edit this as needed
@@ -106,8 +144,10 @@ def main():
     )
 
     # CLIP
-    clip_model, preprocess = clip.load(args.backbone)
-    clip_model.eval()
+    clip_model_1, preprocess = clip.load(args.backbone)
+    clip_model_2, preprocess = clip.load(args.backbone)
+    clip_model_1.eval()
+    clip_model_2.eval()
     logit_scale = 100
 
     # Prepare dataset
@@ -123,8 +163,8 @@ def main():
         target_loader = build_data_loader(data_source=dataset.target, batch_size=args.batch_size, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
 
     # Prepare model
-    model_1 = FewShotClip(args_1, clip_model).cuda()
-    model_2 = FewShotClip(args_2, clip_model).cuda()
+    model_1 = FewShotClip(args_1, clip_model_1).cuda()
+    model_2 = FewShotClip(args_2, clip_model_2).cuda()
 
     meta_query = None
     meta_key = None
@@ -164,7 +204,7 @@ def main():
     print(f"Accuracy for model 2: {acc_test_2:.2f}")
    
     print("Generating metrics...")
-    top_indices = plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions_2, similarities_1, similarities_2, dataset.classnames, k=3)
-
+    plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions_2, similarities_1, similarities_2, dataset.classnames, dataset.test, model_1, model_2, preprocess, k=3)
+    
 if __name__ == '__main__':
     main()
