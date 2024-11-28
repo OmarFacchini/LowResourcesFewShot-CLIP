@@ -98,21 +98,20 @@ def main():
 
     # Prepare model
     model = FewShotClip(args, clip_model).cuda()
-    meta_query = None
-    meta_key = None
+    model._params_to_float()
+    meta_query, meta_key = None, None
+    # Load model checkpoint if specified
     if args.load_ckpt is not None:
         checkpoint = torch.load(args.load_ckpt, weights_only=True)
         model.load_state_dict(checkpoint['model_state_dict'])
-        model = model.float()
         if args.enable_MetaAdapter :
             meta_query = checkpoint['meta_query'].cuda()
             meta_key = checkpoint['meta_key'].cuda()
-
     print("MODEL SIZE => ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     # Prepare class features according to modality
+    model.eval()
     with torch.no_grad():
-        model = model.eval()
         target_features = get_text_target_features(model, dataset) if task_type == 'image2text' else get_vision_target_features(model, target_loader)
 
     if args.eval_only:
