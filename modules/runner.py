@@ -21,11 +21,11 @@ from .meta_adapter.meta_adapter import MetaAdapter
 from .clip import *
 from .model import get_text_target_features, get_vision_target_features
 
-def preserving_breaking_loss(args, model, logit_scale, preserving_loss, breaking_img1, breaking_img2, feature_bank, dtype_autocast=torch.float16):
+def preserving_breaking_loss(args, model, logit_scale, preserving_loss, breaking_img1, breaking_img2, feature_bank):
     
     breaking_img1, breaking_img2 = breaking_img1.cuda(), breaking_img2.cuda()
 
-    with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
+    with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
         breaking_features_1 = model.encode_image(breaking_img1)
         breaking_features_2 = model.encode_image(breaking_img2)
     breaking_features_1 = breaking_features_1/breaking_features_1.norm(dim=-1, keepdim=True)
@@ -192,8 +192,12 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
     best_weights = {}
     feature_bank = []
     best_meta_query , best_meta_key = None, None
+    best_model_dict = None
     
     while count_iters < total_iters:
+        '''
+        TRAINING
+        '''
         model.train()
         acc_train = 0
         tot_samples = 0
@@ -249,49 +253,45 @@ def train_model(args, model, logit_scale, dataset, train_loader, val_loader, tes
             count_iters += 1
             if count_iters == total_iters:
                 break
-
+        '''
+        INFERENCE
+        '''
         if count_iters < total_iters:
             acc_train /= tot_samples
             loss_epoch /= tot_samples
             current_lr = scheduler.get_last_lr()[0]
             print(f"LR: {current_lr:.6f}, Acc: {acc_train:.4f}, Loss: {loss_epoch:.4f}")
 
-        model.eval()
         acc_val = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)
-        print(f"**** Validation accuracy: {acc_val:.2f}. ****\n")
-        
-        # Save best model (maximizing validation accuracy) ((!!! THAT'S PRETTY WRONG IN FEW-SHOT CONTEXT !!!))
+        print(f"**** Validation accuracy: {acc_val:.4f}. ****")
+        # Save best model (maximizing validation accuracy)
         if acc_val > best_acc:
-            print("Saving model at iteration ", count_iters)
-            print("Best accuracy so far: ", acc_val)
             best_acc = acc_val
-            best_model_state_dict = copy.deepcopy(model.state_dict())
-            # in the case of Meta-Adapter, save the best meta_query and meta_key found so far
-            if args.enable_MetaAdapter :
-                best_meta_query = copy.deepcopy(meta_query).cpu()
-                best_meta_key = copy.deepcopy(meta_key).cpu()
-        
-    # Load back best model
+            print(f"Saving model at iteration [{count_iters}]")
+            save_dict = {
+                'model_state_dict': copy.deepcopy(model.state_dict()),
+                'meta_query': meta_query if args.enable_MetaAdapter else None,
+                'meta_key': meta_key if args.enable_MetaAdapter else None,
+            }
+            if args.save_path != None:
+                full_path = os.path.join(args.save_path, str(args.filename) + '.pt')
+                torch.save(save_dict, full_path)
+                print("Model saved => ", full_path)
+        print(f"best accuracy so far : {best_acc:.4f}")
+        print("---")
+    
+    '''
+    FINAL INFERENCE
+    '''
+    model.load_state_dict(save_dict['model_state_dict'])
+    meta_query = save_dict['meta_query']
+    meta_key = save_dict['meta_key']
     model.eval()
-    model.load_state_dict(best_model_state_dict)
-    # Load back q/k for Meta-Adapter if needed
-    if args.enable_MetaAdapter :
-        meta_query = best_meta_query.cuda()
-        meta_key = best_meta_key.cuda()
-    # Test model
-    with torch.no_grad():
+    with torch.no_grad() :
         target_features = get_text_target_features(model, dataset) if task_type == 'image2text' else get_vision_target_features(model, target_loader)
-    acc_test = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)  
-    print(f"**** Test accuracy: {acc_test:.2f}. ****\n") 
+    acc_test = eval_model(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key)
+    print(f"**** Final Test accuracy: {acc_test:.4f}. ****")
 
-    if args.save_path != None:
-        full_path = os.path.join(args.save_path, str(args.filename) + '.pth')
-        if args.enable_MetaAdapter :
-            torch.save({'model_state_dict': best_model_state_dict, 'meta_query' : meta_query.cpu(), 'meta_key' : meta_key.cpu()}, full_path)    
-        else :
-            torch.save({'model_state_dict': best_model_state_dict}, full_path)
-        print("Model saved => ", full_path)
-        
     return
 
 

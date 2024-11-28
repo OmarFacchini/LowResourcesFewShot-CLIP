@@ -6,20 +6,19 @@ from .lora.loralib import apply_lora
 from .clip import *
 from .meta_adapter.meta_adapter import MetaAdapter
 
-def get_text_target_features(model, dataset, dtype_autocast=torch.float16):
+def get_text_target_features(model, dataset):
     """
     Parse through Text encoder text class features, normalize and return
     """
     template = dataset.template[0] 
     texts = [template.format(classname.replace('_', ' ')) for classname in dataset.classnames]
-    with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
+    with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
         texts = clip.tokenize(texts).cuda()
         text_embedding = model.encode_text(texts)
         text_features = text_embedding/text_embedding.norm(dim=-1, keepdim=True)
-
     return text_features
 
-def get_vision_target_features(model, loader, dtype_autocast=torch.float16):
+def get_vision_target_features(model, loader):
     """
     Parse through Vision encoder vision class features, normalize and return
     """
@@ -27,7 +26,7 @@ def get_vision_target_features(model, loader, dtype_autocast=torch.float16):
     features_list = []
     for i, (images, target, breaking_img1, breaking_img2) in enumerate(loader):
         images = images.cuda()
-        with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
+        with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
             image_features = model.encode_image(images)
             features_list.append(image_features)
     #with torch.amp.autocast(device_type="cuda", dtype=dtype_autocast):
@@ -52,6 +51,17 @@ class FewShotClip(nn.Module):
             if p.requires_grad:
                 p.requires_grad = False
 
+        # Add LoRA to CLIP model
+        if args.enable_lora:
+            print("Adding LoRA to CLIP model.")
+            list_lora_layers = apply_lora(args, self.clip_model)
+            # Turn on gradients for all LoRA layers
+            #if args.eval_only:
+            #    print("     Turning off gradients for LoRA layers.")
+            #    for n, p in self.clip_model.named_parameters():
+            #        if 'lora_' in n:
+            #            p.requires_grad = False
+        
         # Add BitFit to CLIP model
         if args.enable_BitFit and not args.eval_only:
             print("Adding BitFit to CLIP model. Biases are trained.")
@@ -60,23 +70,12 @@ class FewShotClip(nn.Module):
                 if 'bias' in n:
                     p.requires_grad = True
 
-        # Add LoRA to CLIP model
-        if args.enable_lora:
-            print("Adding LoRA to CLIP model.")
-            list_lora_layers = apply_lora(args, self.clip_model)
-            # Turn on gradients for all LoRA layers
-            if args.eval_only:
-                print("     Turning off gradients for LoRA layers.")
-                for n, p in self.clip_model.named_parameters():
-                    if 'lora_' in n:
-                        p.requires_grad = False
-
         # Load meta-adapter
         if args.enable_MetaAdapter:
             self.meta_adapter = MetaAdapter(dim=512, dropout_prob=args.dropout_rate_MetaAdapter).to(self.clip_model.dtype)
             print("Adding Meta-Adapter to CLIP model.")
 
-        # Cast all parameters to float
+    def _params_to_float(self):
         for param in self.parameters():
             if param.requires_grad:
                 param.data = param.data.float()
