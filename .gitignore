@@ -6,3 +6,5 @@ LITE-benchmark/*.jpg
 data/
 *.csv
 *.json
+*.png
+ckpt/

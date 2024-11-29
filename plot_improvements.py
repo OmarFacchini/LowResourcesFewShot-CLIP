@@ -42,17 +42,21 @@ def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions
     if len(improvement_indices) == 0:
         print("No improvements found between the models.")
         return
-    
-    # take similarity values for the true labels
-    similarities_1 = similarities_1[np.arange(len(targets_1)), targets_1] 
-    similarities_2 = similarities_2[np.arange(len(targets_2)), targets_2]
+    similarities_1 = similarities_1.astype(np.float64)
+    similarities_2 = similarities_2.astype(np.float64)
+    #print(similarities_1.shape)
+    probabilities_1 = similarities_1 / np.sum(similarities_1, axis=1, keepdims=True)
+    probabilities_2 = similarities_2 / np.sum(similarities_2, axis=1, keepdims=True)
 
-    # compute delta similarities
-    delta_similarities = similarities_2 - similarities_1 
-    improvement_deltas = delta_similarities[improvement_indices] # get deltas for the improvement indices
+    entropies_1 = -np.sum(probabilities_1 * np.log(probabilities_1 + 1e-8), axis=1)
+    entropies_2 = -np.sum(probabilities_2 * np.log(probabilities_2 + 1e-8), axis=1)
+ 
+    delta_entropy = np.abs(entropies_1 - entropies_2)
+    improvement_entropy = delta_entropy[improvement_indices]
 
     # Sort the indices based on the improvement so larger deltas are first
-    sorted_indices = improvement_indices[-np.argsort(improvement_deltas)]
+    sorted_indices = improvement_indices[-np.argsort(improvement_entropy)]
+
     # Select top-k improvement indices
     top_indices = sorted_indices[:k]
 
@@ -75,7 +79,7 @@ def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions
         true_label = classnames[targets_1[idx]]
         pred_label_1 = classnames[predictions_1[idx]]
         pred_label_2 = classnames[predictions_2[idx]]
-        delta = improvement_deltas[i]
+        delta = improvement_entropy[i]
 
         # Get attention maps for both models (call plot_attention_map_enhance with plot=False to get the attention maps and not plot them) 
         attention_map_1, salient_mask_1 = plot_attention_map_enhance(dataset[idx].impath, preprocess, model_1, idx, False)
@@ -88,7 +92,7 @@ def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions
         ax_img = fig.add_subplot(gs[i, 0])
         ax_img.imshow(images_display[idx])
         ax_img.axis('off')
-        ax_img.set_title(f"Original Image\nTrue: {true_label}\nDelta: {delta:.2f}")
+        ax_img.set_title(f"Original Image\nTrue: {true_label}\nDelta Marginal Entropy: {delta:.5f}")
         
         # Plot the attention map 1
         salient_heatmap = np.zeros_like(attention_map_1)
@@ -120,7 +124,7 @@ def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions
         ax_diff.imshow(images_display[idx])
         ax_diff.imshow(cmap(diff_resized), alpha=0.3)
         ax_diff.axis('off')
-        ax_diff.set_title("Difference in\nAttention Maps")
+        ax_diff.set_title("Attention Shift\nMap")
 
     plt.tight_layout()
     plt.savefig("improvements.png", dpi=300)
@@ -132,14 +136,14 @@ def main():
     args = SimpleNamespace(backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32) # edit this as needed
     # Model 1
     args_1 = SimpleNamespace(
-        enable_BitFit=False, enable_lora=True, enable_MetaAdapter=False, enable_breaking_loss=False, eval_only=True, # edit this as needed
-        backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32, load_ckpt="models/lora.pth", # edit this as needed
+        enable_BitFit=False, enable_lora=False, enable_MetaAdapter=False, enable_breaking_loss=False, eval_only=True, # edit this as needed
+        backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32, load_ckpt=None, # edit this as needed
         position='all', encoder='both', params=['q', 'k', 'v'], r=2, alpha=1, dropout_rate_LoRA=0.25, dropout_rate_MetaAdapter=0.5, bank_size=100, lambda_breaking=0.1
     )
     # Model 2
     args_2 = SimpleNamespace(
-        enable_BitFit=True, enable_lora=True, enable_MetaAdapter=True, enable_breaking_loss=False, eval_only=True, # edit this as needed
-        backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32, load_ckpt="models/lora_bitfit_meta.pth", # edit this as needed
+        enable_BitFit=False, enable_lora=True, enable_MetaAdapter=False, enable_breaking_loss=False, eval_only=True, # edit this as needed
+        backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32, load_ckpt="ckpt/clip_lora_eurosat.pt", # edit this as needed
         position='all', encoder='both', params=['q', 'k', 'v'], r=2, alpha=1, dropout_rate_LoRA=0.25, dropout_rate_MetaAdapter=0.5, bank_size=100, lambda_breaking=0.1
     )
 
@@ -204,7 +208,7 @@ def main():
     print(f"Accuracy for model 2: {acc_test_2:.2f}")
    
     print("Generating metrics...")
-    plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions_2, similarities_1, similarities_2, dataset.classnames, dataset.test, model_1, model_2, preprocess, k=3)
+    plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions_2, similarities_1, similarities_2, dataset.classnames, dataset.test, model_1, model_2, preprocess, k=9)
     
 if __name__ == '__main__':
     main()
