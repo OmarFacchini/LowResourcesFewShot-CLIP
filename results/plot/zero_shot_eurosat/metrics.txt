@@ -1,0 +1,14 @@
+Silhouette Score : T 0.0798, C 0.1208, W 0.0841
+ARI : 0.2164
+Homogeneity : 0.3355, Completeness : 0.4291, V-measure : 0.3766
+Class-wise Accuracy:                         Class    +    -  Total  Accuracy
+0            Annual Crop Land  638  262    900  0.708889
+1                      Forest    3  897    900  0.003333
+2  Herbaceous Vegetation Land  129  771    900  0.143333
+3             Highway or Road  573  177    750  0.764000
+4        Industrial Buildings  567  183    750  0.756000
+5                Pasture Land    2  598    600  0.003333
+6         Permanent Crop Land  124  626    750  0.165333
+7       Residential Buildings  741  159    900  0.823333
+8                       River  221  529    750  0.294667
+9                 Sea or Lake  426  474    900  0.473333

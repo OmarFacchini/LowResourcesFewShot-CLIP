@@ -8,10 +8,14 @@ DATASETS=("circuits" "eurosat")
 SEEDS=(1 3 5)
 
 # Enable combinations (all combinations of --enable_lora and --enable_BitFit)
+#ENABLE_COMBINATIONS=(
+#    "--enable_lora"             # Only lora enabled
+#    "--enable_BitFit"           # Only BitFit enabled
+#    "--enable_lora --enable_BitFit" # Both lora and BitFit enabled
+#)
+
 ENABLE_COMBINATIONS=(
-    "--enable_lora"             # Only lora enabled
-    "--enable_BitFit"           # Only BitFit enabled
-    "--enable_lora --enable_BitFit" # Both lora and BitFit enabled
+    "" # Both lora and BitFit enabled
 )
 
 # Loop through datasets, seeds, enable combinations
@@ -42,7 +46,7 @@ for DATASET in "${DATASETS[@]}"; do
                 CKPT_PATH="ckpt/seed_${SEED}/$FILENAME.pt"
                 
                 # Construct the full command
-                CMD="${BASE_CMD} --dataset $DATASET --seed $SEED --shots $SHOTS $ENABLE_FLAGS --eval_only --load_ckpt $CKPT_PATH"
+                CMD="${BASE_CMD} --dataset $DATASET --seed $SEED --shots $SHOTS $ENABLE_FLAGS --eval_only" #--load_ckpt $CKPT_PATH"
 
                 OUTPUT=$($CMD 2>&1)
                 

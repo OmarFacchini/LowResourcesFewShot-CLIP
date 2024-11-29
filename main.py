@@ -11,7 +11,7 @@ from datasets.utils import build_data_loader
 import modules.clip as clip
 from modules.runner import train_model, eval_model, eval_and_get_data
 from modules.utils import *
-from failure_case_analysis import plot_topk_images_for_class, plot_topk_images, plot_attention_map_enhance
+from failure_case_analysis import plot_topk_images_for_class, plot_topk_images, plot_attention_map_enhance, plot_confusion_matrix
 from modules.model import FewShotClip, get_text_target_features, get_vision_target_features
 #torch.autograd.set_detect_anomaly(True)
 
@@ -123,15 +123,15 @@ def main():
             print("Generating metrics...")
             if args.plot_metrics :
                 idx = 1
-                plot_attention_map_enhance(dataset.train_x[idx].impath, preprocess, model, f"CLIP_{idx}")
-                #plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
-                #plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
-                #plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
-                #plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
+                #plot_attention_map_enhance(dataset.train_x[idx].impath, preprocess, model, f"CLIP_{idx}")
+                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
+                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
+                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
+                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
 
-        if args.model_stats_to_csv:
-            print("Saving model stats to csv...")
-            model_out_to_csv(features, targets, predictions, similarities, csv_filename='data/evaluation_results.csv')
+            if args.model_stats_to_csv:
+                print("Saving model stats to csv...")
+                model_out_to_csv(features, targets, predictions, similarities, csv_filename='results/results_csv/evaluation_results.csv')
         
         print("**** Test accuracy: {:.3f}. ****\n".format(acc_test))
     else :

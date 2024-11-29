@@ -9,10 +9,15 @@ DATASETS=("circuits")
 SEEDS=(1 3 5)
 
 # Enable combinations (all combinations of --enable_lora and --enable_BitFit)
+# ENABLE_COMBINATIONS=(
+#     "--enable_lora"             # Only lora enabled
+#     "--enable_BitFit"           # Only BitFit enabled
+#     "--enable_lora --enable_BitFit" # Both lora and BitFit enabled
+# )
+
 ENABLE_COMBINATIONS=(
-    "--enable_lora"             # Only lora enabled
-    "--enable_BitFit"           # Only BitFit enabled
-    "--enable_lora --enable_BitFit" # Both lora and BitFit enabled
+    "--enable_MetaAdapteR"
+    "--enable_lora --enable_BitFit --enable_MetaAdapter"
 )
 
 # Loop through datasets, seeds, and enable combinations

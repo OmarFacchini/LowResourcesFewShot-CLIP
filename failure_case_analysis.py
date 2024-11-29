@@ -12,15 +12,15 @@ from skimage.transform import resize
 from sklearn.metrics import silhouette_score, adjusted_rand_score, homogeneity_score, completeness_score, v_measure_score
 
 METRICS = True
-UMAP_PLOT = False
-FAILURES_PLOT = False
+UMAP_PLOT = True
+FAILURES_PLOT = True
 DATASET = 'eurosat'
 
 """
 GET DATA FUNCTIONS
 """
 
-def get_data(csv_filename='data/evaluation_results.csv', json_label_map='data/eurosat/label_map.json'):
+def get_data(csv_filename='results/results_csv/evaluation_results.csv', json_label_map='data/eurosat/label_map.json'):
     # Open and read the JSON file
     with open(json_label_map, 'r') as file:
         label_map = json.load(file)
@@ -94,7 +94,7 @@ def compute_class_accuracy(targets, predictions, string_targets):
 PLOTTING FUNCTIONS
 """
 
-def plot_umap(features, targets, predictions, string_targets, output_filename='plot/umap_plot.png'):
+def plot_umap(features, targets, predictions, string_targets, output_filename='results/plot/umap_plot.png'):
     umap_model = umap.UMAP(n_neighbors=15, min_dist=0.1, metric='euclidean')
     umap_embeddings = umap_model.fit_transform(features)
 
@@ -172,13 +172,16 @@ def plot_confusion_matrix(targets, predictions, classnames):
         predictions: Predicted labels
         classnames: List of class names
     '''
-    classnames = classnames.values()
+    classnames = [classnames[str(target)] for target in (set(targets).union(set(predictions)))]
+    
+    #print(classnames)
     # Compute confusion matrix
     cm = confusion_matrix(targets, predictions)
+
     # Create figure with adjusted size based on number of classes
     n_classes = len(classnames)
     plt.figure(figsize=(max(8, n_classes * 0.8), max(8, n_classes * 0.8)))
-    
+
     # Shorten class names if they're too long
     shortened_classnames = []
     for name in classnames:
@@ -199,9 +202,15 @@ def plot_confusion_matrix(targets, predictions, classnames):
         # cmap='Blues',        # Use Blues colormap for better readability
     )
     
-    # Adjust label properties
-    plt.xticks(fontsize=8, ha='right')  # Align rotated labels to the right
-    plt.yticks(fontsize=8)
+    if DATASET == "eurosat":
+        # Adjust label properties
+        plt.xticks(fontsize=8, ha='right')  # Align rotated labels to the right
+        plt.yticks(fontsize=8)
+    else:
+        plt.xticks(fontsize=6, ha='right')  # Align rotated labels to the right
+        plt.yticks(fontsize=6)
+        for text in disp.text_.ravel():
+            text.set_fontsize(4)  # Adjust internal font size for digits
     
     # Add title with padding
     plt.title('Confusion Matrix', pad=20)
@@ -210,7 +219,7 @@ def plot_confusion_matrix(targets, predictions, classnames):
     plt.tight_layout()
     
     # Save figure with high DPI
-    plt.savefig('plot/confusion_matrix.png', dpi=300, bbox_inches='tight')
+    plt.savefig('results/plot/confusion_matrix.png', dpi=300, bbox_inches='tight')
     plt.show()
     
 def plot_topk_images_for_class(images, targets, predictions, similarities, classnames, k=3, mode="correct"):
@@ -302,7 +311,7 @@ def plot_topk_images_for_class(images, targets, predictions, similarities, class
     
     # Save figure with extra padding at top
     filename = 'top_correct_for_class.png' if mode == "correct" else 'top_incorrect_for_class.png'
-    plt.savefig('plot/'+ filename, bbox_inches='tight', dpi=300)
+    plt.savefig('results/plot/'+ filename, bbox_inches='tight', dpi=300)
     plt.show()
 
 def plot_topk_images(images, targets, predictions, similarities, classnames, k=3, mode="correct"):
@@ -376,7 +385,7 @@ def plot_topk_images(images, targets, predictions, similarities, classnames, k=3
     
     # Save figure
     filename = 'top_correct.png' if mode == "correct" else 'top_incorrect.png'
-    plt.savefig('plot/'+ filename, bbox_inches='tight', dpi=300)
+    plt.savefig('results/plot/'+ filename, bbox_inches='tight', dpi=300)
     plt.show()
 
 def plot_attention_map(impath, preprocess, clip_model, name):
@@ -470,15 +479,25 @@ if __name__ == "__main__":
     features, targets, predictions, similarities, string_targets, classnames = get_data()
 
     if METRICS:
-        silhouette_complete, silhouette_correct, silhouette_wrongs = compute_silhouette_scores(features, targets, predictions)
-        print(f"Silhouette Score : T {silhouette_complete:.4f}, C {silhouette_correct:.4f}, W {silhouette_wrongs:.4f}")
-        ari = compute_ari(targets, predictions)
-        print(f"ARI : {ari:.4f}")
-        homogeneity, completeness, v_measure = compute_clustering_metrics(targets, predictions)
-        print(f"Homogeneity : {homogeneity:.4f}, Completeness : {completeness:.4f}, V-measure : {v_measure:.4f}")
-        class_accuracy_df = compute_class_accuracy(targets, predictions, string_targets)
-        print("\nClass-wise Accuracy:")
-        print(class_accuracy_df)
+        with open("metrics.txt", "w") as myfile:
+            silhouette_complete, silhouette_correct, silhouette_wrongs = compute_silhouette_scores(features, targets, predictions)
+            print(f"Silhouette Score : T {silhouette_complete:.4f}, C {silhouette_correct:.4f}, W {silhouette_wrongs:.4f}")
+            myfile.write(f"Silhouette Score : T {silhouette_complete:.4f}, C {silhouette_correct:.4f}, W {silhouette_wrongs:.4f}\n")
+
+            ari = compute_ari(targets, predictions)
+            print(f"ARI : {ari:.4f}")
+            myfile.write(f"ARI : {ari:.4f}\n")
+
+            homogeneity, completeness, v_measure = compute_clustering_metrics(targets, predictions)
+            print(f"Homogeneity : {homogeneity:.4f}, Completeness : {completeness:.4f}, V-measure : {v_measure:.4f}")
+            myfile.write(f"Homogeneity : {homogeneity:.4f}, Completeness : {completeness:.4f}, V-measure : {v_measure:.4f}\n")
+
+
+            class_accuracy_df = compute_class_accuracy(targets, predictions, string_targets)
+            print("\nClass-wise Accuracy:")
+            print(class_accuracy_df)
+            myfile.write(f"Class-wise Accuracy: {class_accuracy_df}")
+
 
     if UMAP_PLOT:
         plot_umap(features, targets, predictions, string_targets)
