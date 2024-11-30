@@ -11,16 +11,16 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from skimage.transform import resize
 from sklearn.metrics import silhouette_score, adjusted_rand_score, homogeneity_score, completeness_score, v_measure_score
 
-METRICS = True
+METRICS = False
 UMAP_PLOT = True
-FAILURES_PLOT = True
+FAILURES_PLOT = False
 DATASET = 'eurosat'
 
 """
 GET DATA FUNCTIONS
 """
 
-def get_data(csv_filename='results/results_csv/evaluation_results.csv', json_label_map='data/eurosat/label_map.json'):
+def get_data(csv_filename='results/results_csv/zero_shot_eurosat.csv', json_label_map='data/eurosat/label_map.json'):
     # Open and read the JSON file
     with open(json_label_map, 'r') as file:
         label_map = json.load(file)
@@ -156,7 +156,7 @@ def plot_umap(features, targets, predictions, string_targets, output_filename='r
     # Adjust the legend to have two rows
     handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=color, markersize=10) for color in vibrant_colors]
     labels = [str(target) for target in unique_targets]
-    fig.legend(handles, labels, loc='lower center', ncol=len(unique_targets)//2, bbox_to_anchor=(0.5, -0.1), fontsize=12)
+    fig.legend(handles, labels, loc='lower center', ncol=len(unique_targets)//5, bbox_to_anchor=(0.5, -0.15), fontsize=12)
 
     # Save the combined image
     plt.savefig(output_filename, dpi=300, bbox_inches='tight')
@@ -504,6 +504,7 @@ def plot_attention_map_enhance(impath, preprocess, model, name, plot=True):
         plt.savefig(f"{name}_attention.png", bbox_inches='tight', pad_inches=0)
         plt.close()
     return attention_map, salient_mask
+
 
 if __name__ == "__main__":
     # Load data
