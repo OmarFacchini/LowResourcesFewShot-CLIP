@@ -120,10 +120,11 @@ def main():
             acc_test, images, targets, predictions, features, similarities = eval_and_get_data(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key, support_img_loader=val_loader)
             print("Generating metrics...")
             if args.plot_metrics :
-                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, k=3, model=model, preprocess=preprocess, dataset=dataset.test, mode="correct")
-                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, k=3, model=model, preprocess=preprocess, dataset=dataset.test, mode="incorrect")
-                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, k=5, model=model, preprocess=preprocess, dataset=dataset.test, mode="correct")
-                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, k=5, model=model, preprocess=preprocess, dataset=dataset.test, mode="incorrect")
+                k = 5
+                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, k=k, model=model, preprocess=preprocess, dataset=dataset.test, mode="incorrect")
+                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, k=k, model=model, preprocess=preprocess, dataset=dataset.test, mode="correct")
+                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, k=k, model=model, preprocess=preprocess, dataset=dataset.test, mode="correct")
+                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, k=k, model=model, preprocess=preprocess, dataset=dataset.test, mode="incorrect")
 
             if args.model_stats_to_csv:
                 print("Saving model stats to csv...")

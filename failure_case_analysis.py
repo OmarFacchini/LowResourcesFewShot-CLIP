@@ -10,17 +10,23 @@ import torchvision.transforms as transforms
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from skimage.transform import resize
 from sklearn.metrics import silhouette_score, adjusted_rand_score, homogeneity_score, completeness_score, v_measure_score
+from matplotlib.gridspec import GridSpec
 
 METRICS = False
 UMAP_PLOT = True
 FAILURES_PLOT = False
-DATASET = 'eurosat'
+
+DATASET = 'circuits'
+JSON = 'circuit-diagrams'
+
+# DATASET = 'eurosat'
+# JSON = 'eurosat'
 
 """
 GET DATA FUNCTIONS
 """
 
-def get_data(csv_filename='results/results_csv/zero_shot_eurosat.csv', json_label_map='data/eurosat/label_map.json'):
+def get_data(csv_filename='results/results_csv/zero_shot_'+DATASET+'.csv', json_label_map='data/'+JSON+'/label_map.json'):
     # Open and read the JSON file
     with open(json_label_map, 'r') as file:
         label_map = json.load(file)
@@ -94,7 +100,7 @@ def compute_class_accuracy(targets, predictions, string_targets):
 PLOTTING FUNCTIONS
 """
 
-def plot_umap(features, targets, predictions, string_targets, output_filename='results/plot/umap_plot.png'):
+def plot_umap(features, targets, predictions, string_targets, output_filename='umap_plot.png'):
     umap_model = umap.UMAP(n_neighbors=15, min_dist=0.1, metric='euclidean')
     umap_embeddings = umap_model.fit_transform(features)
 
@@ -110,8 +116,6 @@ def plot_umap(features, targets, predictions, string_targets, output_filename='r
     axes[0, 0].scatter(umap_embeddings[:, 0], umap_embeddings[:, 1], 
                        c=[color_map[string_targets[i]] for i in range(len(targets))], s=12)
     axes[0, 0].set_title('Complete Set', fontsize=14)
-    axes[0, 0].set_xlabel('UMAP 1')
-    axes[0, 0].set_ylabel('UMAP 2')
     axes[0, 0].set_xlim(x_min, x_max)
     axes[0, 0].set_ylim(y_min, y_max)
 
@@ -129,16 +133,12 @@ def plot_umap(features, targets, predictions, string_targets, output_filename='r
     axes[0, 1].scatter(umap_embeddings[:, 0], umap_embeddings[:, 1], 
                        c=point_colors, s=12)
     axes[0, 1].set_title('Merged Prediction (Wrongs in Transparent)', fontsize=14)
-    axes[0, 1].set_xlabel('UMAP 1')
-    axes[0, 1].set_ylabel('UMAP 2')
     axes[0, 1].set_xlim(x_min, x_max)
     axes[0, 1].set_ylim(y_min, y_max)
 
     axes[1, 0].scatter(umap_embeddings[correct_indices, 0], umap_embeddings[correct_indices, 1], 
                        c=[color_map[string_targets[i]] for i in range(len(targets)) if correct_indices[i]], s=12)
     axes[1, 0].set_title('Correct Predictions', fontsize=14)
-    axes[1, 0].set_xlabel('UMAP 1')
-    axes[1, 0].set_ylabel('UMAP 2')
     axes[1, 0].set_xlim(x_min, x_max)
     axes[1, 0].set_ylim(y_min, y_max)
 
@@ -146,8 +146,6 @@ def plot_umap(features, targets, predictions, string_targets, output_filename='r
     axes[1, 1].scatter(umap_embeddings[wrong_indices, 0], umap_embeddings[wrong_indices, 1], 
                        c=[color_map[string_targets[i]] for i in range(len(targets)) if wrong_indices[i]], s=12)
     axes[1, 1].set_title('Wrong Predictions', fontsize=14)
-    axes[1, 1].set_xlabel('UMAP 1')
-    axes[1, 1].set_ylabel('UMAP 2')
     axes[1, 1].set_xlim(x_min, x_max)
     axes[1, 1].set_ylim(y_min, y_max)
 
@@ -221,9 +219,10 @@ def plot_confusion_matrix(targets, predictions, classnames):
     # Save figure with high DPI
     plt.savefig('results/plot/confusion_matrix.png', dpi=300, bbox_inches='tight')
     plt.show()
-    
+ 
+
 def plot_topk_images_for_class(
-    images, targets, predictions, similarities, classnames, k=3, model=None, preprocess=None, dataset=None, mode="correct"
+    images, targets, predictions, similarities, classnames, k=5, model=None, preprocess=None, dataset=None, mode="correct"
 ):
     """
     Plot top-k images for each class with their attention maps based on correctness and similarity, in a compact layout.
@@ -240,10 +239,6 @@ def plot_topk_images_for_class(
         dataset: Dataset object to access image paths
         mode (str): "correct" for correctly classified, "incorrect" for misclassified
     """
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from matplotlib.gridspec import GridSpec
-    from skimage.transform import resize
 
     assert mode in {"correct", "incorrect"}, "Mode must be 'correct' or 'incorrect'."
 
@@ -263,27 +258,30 @@ def plot_topk_images_for_class(
     unique_classes = np.unique(targets)
     n_classes = len(unique_classes)
 
-    # Calculate grid dimensions: 2 rows per class (images and attention maps), + 1 for separators
-    n_rows = 2 * n_classes + (n_classes - 1)  # Includes separator rows
+    # Calculate grid dimensions with spacing between classes
+    rows_per_class = 2  # Image and attention map rows
+    separator_row = 1  # Extra row for spacing between classes
+    n_rows = (rows_per_class + separator_row) * n_classes - separator_row  # Subtract last separator
     n_cols = k + 1  # Extra column for class names
 
-    # Enable constrained layout
-    fig = plt.figure(figsize=(2 * n_cols, 1.5 * n_rows), constrained_layout=True)
+    # Enable constrained layout and increase figure size
+    fig = plt.figure(figsize=(2.5 * n_cols, 2 * n_rows), constrained_layout=True)
     gs = GridSpec(n_rows, n_cols, figure=fig)
 
     current_row = 0
     for i, class_idx in enumerate(unique_classes):
-        # Add class name in the first column (row index)
-        ax_label = fig.add_subplot(gs[current_row:current_row + 2, 0])
+        # Add class name in the first column 
+        ax_label = fig.add_subplot(gs[current_row, 0])
         ax_label.axis('off')
         ax_label.text(
-            0.5, 0.5, classnames[class_idx], fontsize=10, ha='center', va='center', wrap=True
+            0.5, 0.5, classnames[class_idx], fontsize=12, ha='center', va='center', wrap=True
         )
 
         # Get indices of relevant samples for this class
         class_indices = indices[targets[indices] == class_idx]
         if len(class_indices) == 0:
-            current_row += 3  # Skip a row for separator
+            # Move to next class block with a separator row
+            current_row += rows_per_class + (1 if i < n_classes - 1 else 0)
             continue
 
         # Sort by similarity
@@ -310,9 +308,9 @@ def plot_topk_images_for_class(
                 ax_img = fig.add_subplot(gs[current_row, j + 1])
                 ax_img.imshow(images_display[idx])
                 ax_img.axis('off')
-                ax_img.set_title(subtitle, size=8, pad=2)
+                ax_img.set_title(subtitle, size=10, pad=5)
 
-                # Plot attention map
+                # Plot attention map on the row below
                 attention, salient = plot_attention_map_enhance(dataset[idx].impath, preprocess, model, idx, False)
                 h, w = images_display[idx].shape[:2]
                 salient_heatmap = np.zeros_like(attention)
@@ -324,19 +322,18 @@ def plot_topk_images_for_class(
                 ax_attn.imshow(salient_heatmap_resized, alpha=0.3, cmap='jet')
                 ax_attn.axis('off')
 
-        # Move to next set of rows, with a separator
-        current_row += 3
+        # Move to next class block with a separator row (except for the last class)
+        current_row += rows_per_class + (1 if i < n_classes - 1 else 0)
 
     # Adjust layout
-    fig.suptitle(title, fontsize=14)
+    fig.suptitle(title, fontsize=16)
     fig.savefig(f"top_{mode}_images_for_class.png", dpi=300, bbox_inches='tight')
     plt.show()
-
 
   
 
 
-def plot_topk_images(images, targets, predictions, similarities, classnames, k=3, model=None, preprocess=None, dataset=None, mode="correct"):
+def plot_topk_images(images, targets, predictions, similarities, classnames, k=5, model=None, preprocess=None, dataset=None, mode="correct"):
     """
     Plot the top-k best (correctly classified) or worst (misclassified) images globally across all classes.
 
@@ -352,9 +349,6 @@ def plot_topk_images(images, targets, predictions, similarities, classnames, k=3
         preprocess: Preprocessing function for the model
         dataset: Dataset object to access image paths
     """
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from skimage.transform import resize
 
     assert mode in {"correct", "incorrect"}, "Mode must be 'correct' or 'incorrect'."
 
@@ -400,7 +394,7 @@ def plot_topk_images(images, targets, predictions, similarities, classnames, k=3
         # Original image
         axes[0, i].imshow(images_display[idx])
         axes[0, i].axis('off')
-        axes[0, i].set_title(label_text, fontsize=8, pad=5)
+        axes[0, i].set_title(label_text, fontsize=12, pad=5)
 
         # Attention map
         h, w = images_display[idx].shape[:2]
@@ -411,40 +405,11 @@ def plot_topk_images(images, targets, predictions, similarities, classnames, k=3
         axes[1, i].imshow(images_display[idx])
         axes[1, i].imshow(salient_heatmap_resized, alpha=0.3, cmap='jet')
         axes[1, i].axis('off')
-        axes[1, i].set_title("Attention Map", fontsize=8, pad=5)
 
     fig.suptitle(title, fontsize=16)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.savefig(f"results/top_{mode}_images.png", dpi=300, bbox_inches='tight')
-    # plt.show()
-
-
-def plot_attention_map(impath, preprocess, clip_model, name):
-    transform_image = transforms.Compose([
-        transforms.Resize(clip_model.visual.input_resolution, interpolation=Image.BICUBIC),
-        transforms.CenterCrop(clip_model.visual.input_resolution),
-        lambda image: image.convert("RGB"),
-    ])
-
-    img = Image.open(impath) # PIL img
-    img_input = preprocess(img).unsqueeze(0)
-
-    with torch.no_grad(): 
-        image_attention = clip_model.encode_image_attention(img_input)
-        #reshaped_attention = image_attention[0].reshape(14, 14)
-
-    #original_img = transform_image(img)
-    #overlayed_img = overlay_transparency(original_img, reshaped_attention)
-
-    fig = plt.figure(figsize=[10, 5], frameon=False)
-    ax = fig.add_subplot(1, 2, 1)
-    ax.axis("off")
-    ax.imshow(transform_image(img))
-    ax = fig.add_subplot(1, 2, 2)
-    ax.axis("off")
-    ax.imshow(image_attention[0].reshape(14, 14))
-    fig.subplots_adjust(hspace=0, wspace=0)
-    fig.savefig(f"{name}_{1}")
+    plt.savefig(f"top_{mode}_images.png", dpi=300, bbox_inches='tight')
+    plt.show()
 
 
 def plot_attention_map_enhance(impath, preprocess, model, name, plot=True):
@@ -461,7 +426,8 @@ def plot_attention_map_enhance(impath, preprocess, model, name, plot=True):
 
     # Get attention map
     with torch.no_grad(): 
-        image_attention = model.encode_image_attention(img_input)
+        with torch.amp.autocast(device_type="cuda", dtype=torch.float16):
+            image_attention = model.encode_image_attention(img_input)
         attention_map = image_attention[0].reshape(14, 14).cpu().numpy()
 
     # Normalize attention map
