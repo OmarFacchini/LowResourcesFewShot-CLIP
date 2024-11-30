@@ -133,17 +133,17 @@ def plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions
 
 def main():
     # General settings
-    args = SimpleNamespace(backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32) # edit this as needed
+    args = SimpleNamespace(backbone="ViT-B/16", dataset="circuits", root_path="data/", shots=8, batch_size=32, enable_breaking_loss=False) # edit this as needed
     # Model 1
     args_1 = SimpleNamespace(
-        enable_BitFit=False, enable_lora=False, enable_MetaAdapter=False, enable_breaking_loss=False, eval_only=True, # edit this as needed
-        backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32, load_ckpt=None, # edit this as needed
+        enable_BitFit=False, enable_lora=True, enable_MetaAdapter=False, enable_breaking_loss=False, eval_only=True, # edit this as needed
+        backbone="ViT-B/16", dataset="circuits", root_path="data/", shots=4, batch_size=32, load_ckpt="models/clip_lora_circuits_4shots.pt", # edit this as needed
         position='all', encoder='both', params=['q', 'k', 'v'], r=2, alpha=1, dropout_rate_LoRA=0.25, dropout_rate_MetaAdapter=0.5, bank_size=100, lambda_breaking=0.1
     )
     # Model 2
     args_2 = SimpleNamespace(
-        enable_BitFit=False, enable_lora=True, enable_MetaAdapter=False, enable_breaking_loss=False, eval_only=True, # edit this as needed
-        backbone="ViT-B/16", dataset="eurosat", root_path="data/", shots=5, batch_size=32, load_ckpt="ckpt/clip_lora_eurosat.pt", # edit this as needed
+        enable_BitFit=True, enable_lora=True, enable_MetaAdapter=False, enable_breaking_loss=False, eval_only=True, # edit this as needed
+        backbone="ViT-B/16", dataset="circuits", root_path="data/", shots=8, batch_size=32, load_ckpt="models/clip_lora_bitfit_circuits_8shots.pt", # edit this as needed
         position='all', encoder='both', params=['q', 'k', 'v'], r=2, alpha=1, dropout_rate_LoRA=0.25, dropout_rate_MetaAdapter=0.5, bank_size=100, lambda_breaking=0.1
     )
 
@@ -208,7 +208,7 @@ def main():
     print(f"Accuracy for model 2: {acc_test_2:.2f}")
    
     print("Generating metrics...")
-    plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions_2, similarities_1, similarities_2, dataset.classnames, dataset.test, model_1, model_2, preprocess, k=9)
+    plot_improvements(images_1, targets_1, targets_2, predictions_1, predictions_2, similarities_1, similarities_2, dataset.classnames, dataset.test, model_1, model_2, preprocess, k=5)
     
 if __name__ == '__main__':
     main()

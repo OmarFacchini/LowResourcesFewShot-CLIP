@@ -75,8 +75,6 @@ def main():
     # Prepare dataset
     print("Preparing dataset.")
     task_type = 'image2text'
-    if args.dataset == 'historic_maps':
-        task_type = 'image2image'
 
     dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
     target_loader = None
@@ -122,12 +120,10 @@ def main():
             acc_test, images, targets, predictions, features, similarities = eval_and_get_data(args, model, logit_scale, test_loader, target_features, meta_query=meta_query, meta_key=meta_key, support_img_loader=val_loader)
             print("Generating metrics...")
             if args.plot_metrics :
-                idx = 1
-                #plot_attention_map_enhance(dataset.train_x[idx].impath, preprocess, model, f"CLIP_{idx}")
-                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "correct")
-                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, 3, "incorrect")
-                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "correct")
-                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, 5, "incorrect")
+                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, k=3, model=model, preprocess=preprocess, dataset=dataset.test, mode="correct")
+                plot_topk_images_for_class(images, targets, predictions, similarities, dataset.classnames, k=3, model=model, preprocess=preprocess, dataset=dataset.test, mode="incorrect")
+                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, k=5, model=model, preprocess=preprocess, dataset=dataset.test, mode="correct")
+                plot_topk_images(images, targets, predictions, similarities, dataset.classnames, k=5, model=model, preprocess=preprocess, dataset=dataset.test, mode="incorrect")
 
             if args.model_stats_to_csv:
                 print("Saving model stats to csv...")

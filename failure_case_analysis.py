@@ -222,10 +222,12 @@ def plot_confusion_matrix(targets, predictions, classnames):
     plt.savefig('results/plot/confusion_matrix.png', dpi=300, bbox_inches='tight')
     plt.show()
     
-def plot_topk_images_for_class(images, targets, predictions, similarities, classnames, k=3, mode="correct"):
+def plot_topk_images_for_class(
+    images, targets, predictions, similarities, classnames, k=3, model=None, preprocess=None, dataset=None, mode="correct"
+):
     """
-    Plot top-k images for each class based on correctness and similarity.
-    
+    Plot top-k images for each class with their attention maps based on correctness and similarity, in a compact layout.
+
     Args:
         images (np.ndarray): Array of images (N, C, H, W)
         targets (np.ndarray): Array of true labels
@@ -233,91 +235,111 @@ def plot_topk_images_for_class(images, targets, predictions, similarities, class
         similarities (np.ndarray): Array of cosine similarities
         classnames (list): List of class names
         k (int): Number of top images to consider per class
+        model: Model used for generating attention maps
+        preprocess: Preprocessing function for the model
+        dataset: Dataset object to access image paths
         mode (str): "correct" for correctly classified, "incorrect" for misclassified
     """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.gridspec import GridSpec
+    from skimage.transform import resize
+
     assert mode in {"correct", "incorrect"}, "Mode must be 'correct' or 'incorrect'."
-    
+
     # Convert images from (N, C, H, W) to (N, H, W, C) and normalize for display
     images_display = np.transpose(images, (0, 2, 3, 1))
     images_display = (images_display - images_display.min()) / (images_display.max() - images_display.min())
-    
+
     # Determine mask and title based on mode
     if mode == "correct":
         mask = targets == predictions
-        title = "Top Correctly Classified Images by Cosine Similarity"
+        title = "Top Correctly Classified Images with Attention Maps"
     else:
         mask = targets != predictions
-        title = "Most Confidently Misclassified Images"
-    
+        title = "Most Confidently Misclassified Images with Attention Maps"
+
     indices = np.where(mask)[0]
     unique_classes = np.unique(targets)
     n_classes = len(unique_classes)
-    
-    # Calculate grid dimensions
-    n_cols = k
-    n_rows = n_classes
-    
-    # Create figure with extra space for title and class names
-    fig = plt.figure(figsize=(3 * n_cols + 2, 3 * n_rows + 1))
-    
-    # Create GridSpec with extra space at top for title
-    gs = plt.GridSpec(n_rows + 1, n_cols + 1, height_ratios=[0.3] + [1] * n_rows, 
-                      width_ratios=[0.4] + [1] * n_cols)
-    
-    # Add title in the extra row at top
-    ax_title = fig.add_subplot(gs[0, :])
-    ax_title.text(0.5, 0.5, title, fontsize=16, horizontalalignment='center', verticalalignment='center')
-    ax_title.axis('off')
-    
+
+    # Calculate grid dimensions: 2 rows per class (images and attention maps), + 1 for separators
+    n_rows = 2 * n_classes + (n_classes - 1)  # Includes separator rows
+    n_cols = k + 1  # Extra column for class names
+
+    # Enable constrained layout
+    fig = plt.figure(figsize=(2 * n_cols, 1.5 * n_rows), constrained_layout=True)
+    gs = GridSpec(n_rows, n_cols, figure=fig)
+
+    current_row = 0
     for i, class_idx in enumerate(unique_classes):
-        # Add class name or true class name in a separate column (offset by 1 row due to title)
-        ax_name = fig.add_subplot(gs[i + 1, 0])
-        label_text = classnames[class_idx] if mode == "correct" else f"True: {classnames[class_idx]}"
-        ax_name.text(0.5, 0.5, label_text, fontsize=10, horizontalalignment='center',
-                     verticalalignment='center', wrap=True)
-        ax_name.axis('off')
-        
+        # Add class name in the first column (row index)
+        ax_label = fig.add_subplot(gs[current_row:current_row + 2, 0])
+        ax_label.axis('off')
+        ax_label.text(
+            0.5, 0.5, classnames[class_idx], fontsize=10, ha='center', va='center', wrap=True
+        )
+
         # Get indices of relevant samples for this class
         class_indices = indices[targets[indices] == class_idx]
         if len(class_indices) == 0:
+            current_row += 3  # Skip a row for separator
             continue
-        
+
         # Sort by similarity
         if mode == "correct":
             class_similarities = similarities[class_indices, class_idx]
         else:
             class_similarities = np.array([similarities[idx, predictions[idx]] for idx in class_indices])
-        
+
         top_k_indices = class_indices[np.argsort(class_similarities)[-k:]]
         top_k_similarities = class_similarities[np.argsort(class_similarities)[-k:]]
-        
-        # Plot top k images
+
+        # Plot top k images and their attention maps
         for j in range(k):
             if j < len(top_k_indices):
                 idx = top_k_indices[-(j+1)]
                 sim = top_k_similarities[-(j+1)]
                 if mode == "correct":
-                    subtitle = f"Similarity: {sim:.3f}"
+                    subtitle = f"Sim: {sim:.3f}"
                 else:
                     pred_class = predictions[idx]
                     subtitle = f"Pred: {classnames[pred_class]}\nSim: {sim:.3f}"
-                
-                ax = fig.add_subplot(gs[i + 1, j + 1])  # Offset by 1 row due to title
-                ax.imshow(images_display[idx])
-                ax.axis('off')
-                ax.set_title(subtitle, size=8)
-    
-    plt.tight_layout()
-    
-    # Save figure with extra padding at top
-    filename = 'top_correct_for_class.png' if mode == "correct" else 'top_incorrect_for_class.png'
-    plt.savefig('results/plot/'+ filename, bbox_inches='tight', dpi=300)
+
+                # Plot original image
+                ax_img = fig.add_subplot(gs[current_row, j + 1])
+                ax_img.imshow(images_display[idx])
+                ax_img.axis('off')
+                ax_img.set_title(subtitle, size=8, pad=2)
+
+                # Plot attention map
+                attention, salient = plot_attention_map_enhance(dataset[idx].impath, preprocess, model, idx, False)
+                h, w = images_display[idx].shape[:2]
+                salient_heatmap = np.zeros_like(attention)
+                salient_heatmap[salient] = attention[salient]
+                salient_heatmap_resized = resize(salient_heatmap, (h, w), order=3, mode='constant')
+
+                ax_attn = fig.add_subplot(gs[current_row + 1, j + 1])
+                ax_attn.imshow(images_display[idx])
+                ax_attn.imshow(salient_heatmap_resized, alpha=0.3, cmap='jet')
+                ax_attn.axis('off')
+
+        # Move to next set of rows, with a separator
+        current_row += 3
+
+    # Adjust layout
+    fig.suptitle(title, fontsize=14)
+    fig.savefig(f"top_{mode}_images_for_class.png", dpi=300, bbox_inches='tight')
     plt.show()
 
-def plot_topk_images(images, targets, predictions, similarities, classnames, k=3, mode="correct"):
+
+  
+
+
+def plot_topk_images(images, targets, predictions, similarities, classnames, k=3, model=None, preprocess=None, dataset=None, mode="correct"):
     """
     Plot the top-k best (correctly classified) or worst (misclassified) images globally across all classes.
-    
+
     Args:
         images (np.ndarray): Array of images (N, C, H, W)
         targets (np.ndarray): Array of true labels
@@ -326,13 +348,20 @@ def plot_topk_images(images, targets, predictions, similarities, classnames, k=3
         classnames (list): List of class names
         k (int): Number of top images to consider
         mode (str): "correct" for correctly classified, "incorrect" for misclassified
+        model: Model used for generating attention maps
+        preprocess: Preprocessing function for the model
+        dataset: Dataset object to access image paths
     """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from skimage.transform import resize
+
     assert mode in {"correct", "incorrect"}, "Mode must be 'correct' or 'incorrect'."
-    
+
     # Convert images from (N, C, H, W) to (N, H, W, C) and normalize for display
     images_display = np.transpose(images, (0, 2, 3, 1))
     images_display = (images_display - images_display.min()) / (images_display.max() - images_display.min())
-    
+
     if mode == "correct":
         # Get correctly classified samples
         mask = targets == predictions
@@ -343,50 +372,52 @@ def plot_topk_images(images, targets, predictions, similarities, classnames, k=3
         mask = targets != predictions
         title = "Top Worst Misclassified Images by Cosine Similarity"
         similarity_values = np.array([similarities[idx, predictions[idx]] for idx in range(len(predictions))])
-    
+
     indices = np.where(mask)[0]
     if len(indices) == 0:
         print(f"No {'correct' if mode == 'correct' else 'incorrect'} samples to display.")
         return
-    
+
     # Sort indices by similarity
     sorted_indices = indices[np.argsort(similarity_values[indices])]
     top_k_indices = sorted_indices[-k:]  # Top k
     top_k_indices = top_k_indices[::-1]  # Reverse for descending order
-    
-    # Create figure with more space for the title
+
+    # Create figure with space for original images and attention maps
     n_cols = k
-    n_rows = 1
-    fig = plt.figure(figsize=(3 * n_cols, 4))  # Increased height to accommodate title
-    
-    # Create gridspec to manage subplot layout
-    gs = plt.GridSpec(2, 1, height_ratios=[1, 8])
-    
-    # Add title in its own subplot
-    title_ax = fig.add_subplot(gs[0])
-    title_ax.axis('off')
-    title_ax.text(0.5, 0.5, title, fontsize=16, ha='center', va='center')
-    
-    # Create subplot for images
-    image_grid = gs[1].subgridspec(n_rows, n_cols)
-    axes = [fig.add_subplot(image_grid[0, i]) for i in range(n_cols)]
-    
+    n_rows = 2  # One row for original images, one for attention maps
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 8))
+
     for i, idx in enumerate(top_k_indices):
         sim = similarity_values[idx]
         label_text = (f"Class: {classnames[targets[idx]]}\n"
-                     f"Pred: {classnames[predictions[idx]] if mode == 'incorrect' else 'Correct'}\n"
-                     f"Sim: {sim:.3f}")
+                      f"Pred: {classnames[predictions[idx]] if mode == 'incorrect' else 'Correct'}\n"
+                      f"Sim: {sim:.3f}")
         
-        axes[i].imshow(images_display[idx])
-        axes[i].axis('off')
-        axes[i].set_title(label_text, fontsize=8, pad=5)  # Added pad for spacing
-    
-    plt.tight_layout()
-    
-    # Save figure
-    filename = 'top_correct.png' if mode == "correct" else 'top_incorrect.png'
-    plt.savefig('results/plot/'+ filename, bbox_inches='tight', dpi=300)
-    plt.show()
+        # Compute attention map
+        attention, salient = plot_attention_map_enhance(dataset[idx].impath, preprocess, model, idx, False)
+
+        # Original image
+        axes[0, i].imshow(images_display[idx])
+        axes[0, i].axis('off')
+        axes[0, i].set_title(label_text, fontsize=8, pad=5)
+
+        # Attention map
+        h, w = images_display[idx].shape[:2]
+        salient_heatmap = np.zeros_like(attention)
+        salient_heatmap[salient] = attention[salient]
+        salient_heatmap_resized = resize(salient_heatmap, (h, w), order=3, mode='constant')
+
+        axes[1, i].imshow(images_display[idx])
+        axes[1, i].imshow(salient_heatmap_resized, alpha=0.3, cmap='jet')
+        axes[1, i].axis('off')
+        axes[1, i].set_title("Attention Map", fontsize=8, pad=5)
+
+    fig.suptitle(title, fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.savefig(f"results/top_{mode}_images.png", dpi=300, bbox_inches='tight')
+    # plt.show()
+
 
 def plot_attention_map(impath, preprocess, clip_model, name):
     transform_image = transforms.Compose([
