@@ -12,9 +12,9 @@ from skimage.transform import resize
 from sklearn.metrics import silhouette_score, adjusted_rand_score, homogeneity_score, completeness_score, v_measure_score
 from matplotlib.gridspec import GridSpec
 
-METRICS = False
+METRICS = True
 UMAP_PLOT = True
-FAILURES_PLOT = False
+FAILURES_PLOT = True
 
 DATASET = 'circuits'
 JSON = 'circuit-diagrams'
@@ -25,8 +25,8 @@ JSON = 'circuit-diagrams'
 """
 GET DATA FUNCTIONS
 """
-
-def get_data(csv_filename='results/results_csv/zero_shot_'+DATASET+'.csv', json_label_map='data/'+JSON+'/label_map.json'):
+# 'results/results_csv/zero_shot_'+DATASET+'.csv'
+def get_data(csv_filename='results/results_csv/evaluation_results.csv', json_label_map='data/'+JSON+'/label_map.json'):
     # Open and read the JSON file
     with open(json_label_map, 'r') as file:
         label_map = json.load(file)
@@ -217,7 +217,7 @@ def plot_confusion_matrix(targets, predictions, classnames):
     plt.tight_layout()
     
     # Save figure with high DPI
-    plt.savefig('results/plot/confusion_matrix.png', dpi=300, bbox_inches='tight')
+    plt.savefig('confusion_matrix.png', dpi=300, bbox_inches='tight')
     plt.show()
  
 
