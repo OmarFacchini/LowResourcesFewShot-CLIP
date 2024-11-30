@@ -16,11 +16,11 @@ METRICS = False
 UMAP_PLOT = True
 FAILURES_PLOT = False
 
-DATASET = 'circuits'
-JSON = 'circuit-diagrams'
+#DATASET = 'circuits'
+#JSON = 'circuit-diagrams'
 
-# DATASET = 'eurosat'
-# JSON = 'eurosat'
+DATASET = 'eurosat'
+JSON = 'eurosat'
 
 """
 GET DATA FUNCTIONS

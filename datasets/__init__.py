@@ -30,8 +30,10 @@ dataset_list = {
                 }
 
 
-def build_dataset(dataset, root_path, shots, preprocess):
+def build_dataset(dataset, root_path, shots, preprocess, breaking_loss):
     if dataset == 'imagenet':
         return dataset_list[dataset](root_path, shots, preprocess)
+    elif dataset == 'circuits':
+        return dataset_list[dataset](root_path, shots, breaking_loss)
     else:
         return dataset_list[dataset](root_path, shots)
