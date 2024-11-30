@@ -28,15 +28,16 @@ class Circuits(DatasetBase):
 
     dataset_dir = 'circuit-diagrams'
 
-    def __init__(self, root, num_shots):
+    def __init__(self, root, num_shots, breaking_loss):
 
         self.dataset_dir = os.path.join(root, self.dataset_dir)
         self.image_dir = os.path.join(self.dataset_dir, 'data')
         self.split_path = os.path.join(self.dataset_dir, 'split_config.json')
+        self.use_breaking_loss = breaking_loss
 
         self.template = circuit_templates
 
-        train, val, test = self.read_split(self.split_path, self.image_dir)
+        train, val, test = self.read_split(self.split_path, self.image_dir, self.use_breaking_loss)
 
         n_shots_val = min(num_shots, 4)
         val = self.generate_fewshot_dataset(val, num_shots=n_shots_val)
@@ -46,8 +47,8 @@ class Circuits(DatasetBase):
 
     
     @staticmethod
-    def read_split(filepath, path_prefix):
-        def _convert(items, train=False):
+    def read_split(filepath, path_prefix, use_breaking_loss):
+        def _convert(items, train=False, use_breaking_loss=False):
             out = []
             for impath, label, classname in items:
                 # remove .png and keep file name eg: 1
@@ -59,7 +60,7 @@ class Circuits(DatasetBase):
                 impath = os.path.join(path_prefix, impath) 
 
                 # concept of label preserving and breaking is applied only to training
-                if train:
+                if train and use_breaking_loss:
                     # dataset/circuit-diagrams/data/label_preserving
                     preserving_dir_path = os.path.join(path_prefix, "label_preserving")
                     
@@ -120,7 +121,7 @@ class Circuits(DatasetBase):
         
         print(f'Reading split from {filepath}')
         split = read_json(filepath)
-        train = _convert(split['train'], True)
+        train = _convert(split['train'], True, use_breaking_loss)
         val = _convert(split['val'])
         test = _convert(split['test'])
 

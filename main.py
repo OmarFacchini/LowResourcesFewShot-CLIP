@@ -41,7 +41,7 @@ def get_arguments():
     parser.add_argument('--r', default=2, type=int, help='the rank of the low-rank matrices')
     parser.add_argument('--alpha', default=1, type=int, help='scaling (see LoRA paper)')
     parser.add_argument('--dropout_rate_LoRA', default=0.25, type=float, help='dropout rate applied before the LoRA module')
-    parser.add_argument('--dropout_rate_MetaAdapter', default=0.5, type=float, help='dropout rate applied before the MetaAdapter module')
+    parser.add_argument('--dropout_rate_MetaAdapter', default=0.4, type=float, help='dropout rate applied before the MetaAdapter module')
     parser.add_argument('--bank_size', default=100, type=int, help='size of the feature bank for Breaking Loss')
     parser.add_argument('--lambda_breaking', default=0.1, type=float, help='size of the feature bank for Breaking Loss')
 
@@ -76,7 +76,7 @@ def main():
     print("Preparing dataset.")
     task_type = 'image2text'
 
-    dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess)
+    dataset = build_dataset(args.dataset, args.root_path, args.shots, preprocess, args.enable_breaking_loss)
     target_loader = None
 
     val_loader = build_data_loader(data_source=dataset.val, batch_size=args.batch_size, is_train=False, tfm=preprocess, shuffle=False,  num_workers=8, task_type=task_type)
