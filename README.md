@@ -1,4 +1,4 @@
-# Low-Resource Vision Challenges for CLIP Models
+# CLIP on low-resource vision
 
 ## Overview
 
