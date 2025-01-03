@@ -80,7 +80,7 @@ python main.py --dataset circuits
 If you use this work in your research, please cite:
 
 ```bibtex
-@article{Lorenzi2024LowResourceVision,
+@article{LorenziCazzolaFacchini2024LowResourceVision,
   title={CLIP on Low-Resource Vision},
   author={Lorenzi, Alessandro and Cazzola, Luca and Facchini, Omar},
   year={2024},
